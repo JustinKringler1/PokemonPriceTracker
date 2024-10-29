@@ -1,21 +1,40 @@
 import pandas as pd
+from google.oauth2 import service_account
+from playwright.async_api import async_playwright
+import os
 import asyncio
 from datetime import datetime
-from pathlib import Path
-from playwright.async_api import async_playwright
 
-# Read URLs from text file
-def read_urls(file_path="urls.txt"):
-    with open(file_path, "r") as f:
-        return [line.strip() for line in f if line.strip()]
+# Set up Google Cloud BigQuery credentials
+credentials = service_account.Credentials.from_service_account_info({
+    "type": "service_account",
+    "project_id": os.getenv("BIGQUERY_PROJECT_ID"),
+    "private_key_id": os.getenv("BIGQUERY_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("BIGQUERY_PRIVATE_KEY").replace("\\n", "\n"),
+    "client_email": os.getenv("BIGQUERY_CLIENT_EMAIL"),
+    "client_id": os.getenv("BIGQUERY_CLIENT_ID"),
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": os.getenv("BIGQUERY_CLIENT_CERT_URL")
+})
 
-# Define a function to scrape a single table from a given URL
+# Function to upload data to BigQuery
+def upload_to_bigquery(df, table_id):
+    df.to_gbq(
+        table_id, 
+        project_id=os.getenv("BIGQUERY_PROJECT_ID"), 
+        if_exists="append", 
+        credentials=credentials
+    )
+
+# Scraping function
 async def scrape_single_table(url, browser):
     page = await browser.new_page()
     await page.goto(url)
     
     try:
-        await page.wait_for_selector("table", timeout=90000)  # 90 seconds timeout
+        await page.wait_for_selector("table", timeout=90000)
         rows = await page.query_selector_all("table tr")
         
         if rows:
@@ -23,18 +42,15 @@ async def scrape_single_table(url, browser):
             target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
             headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
 
-            # Find indices of target columns
             indices = [headers.index(col) for col in target_columns if col in headers]
-
-            for row in rows[1:]:  # Skip header row
+            for row in rows[1:]:
                 cells = await row.query_selector_all("td")
-                row_data = [await cells[i].inner_text() for i in indices]  # Extract only target columns
+                row_data = [await cells[i].inner_text() for i in indices]
                 table_data.append(row_data)
             
-            # Generate DataFrame with selected columns
             df = pd.DataFrame(table_data, columns=target_columns)
-            df["source"] = url.split('/')[-1]  # Add source column
-            df["scrape_date"] = datetime.now().strftime("%Y-%m-%d")  # Add scrape date column
+            df["source"] = url.split('/')[-1]
+            df["scrape_date"] = datetime.now().date()
             print(f"Data scraped successfully from {url}")
             return df
         else:
@@ -48,54 +64,27 @@ async def scrape_single_table(url, browser):
     finally:
         await page.close()
 
-# Define the function to scrape multiple tables concurrently
-async def scrape_multiple_tables_concurrently(urls):
+# Main function for scraping and uploading data
+async def scrape_and_store_data(urls, table_id):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        
-        # Load existing data if available
-        combined_file = Path("combined_pokemon_prices.csv")
-        if combined_file.exists():
-            existing_data = pd.read_csv(combined_file)
-            
-            # Ensure "scrape_date" and "source" columns are present in existing_data
-            if "scrape_date" not in existing_data.columns:
-                existing_data["scrape_date"] = pd.NaT  # Set as NaT for missing dates
-            if "source" not in existing_data.columns:
-                existing_data["source"] = None
-        else:
-            existing_data = pd.DataFrame()
-
-        # Run scraping tasks concurrently and collect results
         tasks = [scrape_single_table(url, browser) for url in urls]
-        new_data = await asyncio.gather(*tasks)
-        new_data = pd.concat([df for df in new_data if not df.empty], ignore_index=True)
+        results = await asyncio.gather(*tasks)
+        combined_data = pd.concat([df for df in results if not df.empty], ignore_index=True)
         
-        if not new_data.empty:
-            # Filter out existing data for today's date and same source
-            today = datetime.now().strftime("%Y-%m-%d")
-            if not existing_data.empty:
-                # Filter only if columns are present
-                existing_data = existing_data[
-                    ~((existing_data["scrape_date"].astype(str) == today) & (existing_data["source"].isin(new_data["source"])))
-                ]
-            
-            # Combine new data with existing data
-            combined_data = pd.concat([existing_data, new_data], ignore_index=True)
-            combined_data.to_csv("combined_pokemon_prices.csv", index=False)
-            print("Data saved to combined_pokemon_prices.csv")
+        if not combined_data.empty:
+            upload_to_bigquery(combined_data, table_id)
+            print(f"Data uploaded to BigQuery table {table_id}")
         else:
             print("No new data scraped.")
-
+        
         await browser.close()
 
 # Main entry point
 def main():
-    urls = read_urls("urls.txt")  # Load URLs from text file
-    if urls:
-        asyncio.run(scrape_multiple_tables_concurrently(urls))
-    else:
-        print("No URLs found in urls.txt.")
+    urls = ["https://www.tcgplayer.com/..."]
+    table_id = "pokemon_data.pokemon_prices"  # Dataset.table name in BigQuery
+    asyncio.run(scrape_and_store_data(urls, table_id))
 
 if __name__ == "__main__":
     main()
