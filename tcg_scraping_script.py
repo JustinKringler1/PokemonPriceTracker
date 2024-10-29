@@ -1,18 +1,14 @@
 # Required imports
 import pandas as pd
-import nest_asyncio
 import asyncio
 from playwright.async_api import async_playwright
-
-# Enable nested event loops in Colab
-nest_asyncio.apply()
 
 # Define a function to scrape a single table from a given URL
 async def scrape_single_table(url, browser):
     page = await browser.new_page()
     await page.goto(url)
     
-    # Increase timeout and wait until the table has loaded rows
+    # Wait until the table has loaded rows
     try:
         await page.wait_for_selector("table", timeout=60000)  # 60 seconds timeout
         rows = await page.query_selector_all("table tr")
