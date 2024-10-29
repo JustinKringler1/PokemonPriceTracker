@@ -3,7 +3,7 @@ name: Scrape Data
 on:
   schedule:
     - cron: '0 0 * * *'  # Runs daily at midnight; adjust as needed
-  workflow_dispatch:  # Manual trigger option
+  workflow_dispatch:  # Allows manual trigger
 
 jobs:
   scrape:
@@ -12,11 +12,6 @@ jobs:
     steps:
     - name: Check out repository
       uses: actions/checkout@v3
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -27,11 +22,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pandas nest_asyncio playwright
-        playwright install
+        playwright install  # Ensures all required browser binaries are available
 
     - name: Run Scraping Script
       run: |
-        python tcg_scraping_script.py  
+        python tcg_scraping_script.py  # Ensure this matches your script filename
 
     - name: Commit and Push Results
       run: |
