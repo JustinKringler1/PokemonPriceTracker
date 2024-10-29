@@ -1,38 +1,43 @@
 import pandas as pd
 import asyncio
+from datetime import datetime
 from playwright.async_api import async_playwright
+
+# Read URLs from text file
+def read_urls(file_path="urls.txt"):
+    with open(file_path, "r") as f:
+        return [line.strip() for line in f if line.strip()]
 
 # Define a function to scrape a single table from a given URL
 async def scrape_single_table(url, browser):
     page = await browser.new_page()
     await page.goto(url)
     
-    # Try different strategies to wait for table content
     try:
-        await page.wait_for_selector("table", timeout=90000)  # Increase timeout to 90 seconds
+        await page.wait_for_selector("table", timeout=90000)  # 90 seconds timeout
         rows = await page.query_selector_all("table tr")
         
-        # Wait until at least some rows are loaded in the table
-        if len(rows) < 2:  # Adjust if more rows are expected
-            print(f"Waiting for rows to load fully on {url}...")
-            await page.wait_for_timeout(5000)  # Wait an additional 5 seconds
-            rows = await page.query_selector_all("table tr")
-        
-        # Collect data if rows are found
         if rows:
             table_data = []
-            for row in rows:
-                cells = await row.query_selector_all("td, th")
-                row_data = [await cell.inner_text() for cell in cells]
+            target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
+            headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
+
+            # Find indices of target columns
+            indices = [headers.index(col) for col in target_columns if col in headers]
+
+            for row in rows[1:]:  # Skip header row
+                cells = await row.query_selector_all("td")
+                row_data = [await cells[i].inner_text() for i in indices]  # Extract only target columns
                 table_data.append(row_data)
             
-            # Generate DataFrame with source column
-            df = pd.DataFrame(table_data[1:], columns=table_data[0])
-            df["source"] = url.split('/')[-1]  # Source column based on URL suffix
+            # Generate DataFrame with selected columns
+            df = pd.DataFrame(table_data, columns=target_columns)
+            df["source"] = url.split('/')[-1]  # Add source column
+            df["scrape_date"] = datetime.now().strftime("%Y-%m-%d")  # Add scrape date column
             print(f"Data scraped successfully from {url}")
             return df
         else:
-            print(f"No rows loaded for {url}. Page content may not be loading as expected.")
+            print(f"No rows loaded for {url}.")
             return pd.DataFrame()
 
     except Exception as e:
@@ -45,13 +50,11 @@ async def scrape_single_table(url, browser):
 # Define the function to scrape multiple tables concurrently
 async def scrape_multiple_tables_concurrently(urls):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)  # Change to False to debug visually
+        browser = await p.chromium.launch(headless=True)
         
-        # Run scraping tasks concurrently and collect results
         tasks = [scrape_single_table(url, browser) for url in urls]
         all_data = await asyncio.gather(*tasks)
         
-        # Combine all non-empty dataframes into a single CSV file
         non_empty_data = [df for df in all_data if not df.empty]
         
         if non_empty_data:
@@ -65,13 +68,11 @@ async def scrape_multiple_tables_concurrently(urls):
 
 # Main entry point
 def main():
-    urls = [
-        "https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides/sv-scarlet-and-violet-151",
-        # Add more URLs here
-    ]
-    
-    # Run the async function
-    asyncio.run(scrape_multiple_tables_concurrently(urls))
+    urls = read_urls("urls.txt")  # Load URLs from text file
+    if urls:
+        asyncio.run(scrape_multiple_tables_concurrently(urls))
+    else:
+        print("No URLs found in urls.txt.")
 
 if __name__ == "__main__":
     main()
