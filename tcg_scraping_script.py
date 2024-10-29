@@ -57,11 +57,14 @@ async def scrape_multiple_tables_concurrently(urls):
         await browser.close()
 
 # Main entry point
-if __name__ == "__main__":
+def main():
     urls = [
         "https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides/sv-scarlet-and-violet-151",
         # Add more URLs here
     ]
-
-    # Run the async function with the list of URLs
+    
+    # Run the async function
     asyncio.run(scrape_multiple_tables_concurrently(urls))
+
+if __name__ == "__main__":
+    main()
