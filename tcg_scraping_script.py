@@ -23,6 +23,10 @@ credentials = service_account.Credentials.from_service_account_info({
 # Initialize BigQuery client
 bq_client = bigquery.Client(credentials=credentials, project=os.getenv("BIGQUERY_PROJECT_ID"))
 
+# Define concurrency limit
+CONCURRENT_REQUESTS = 10
+semaphore = asyncio.Semaphore(CONCURRENT_REQUESTS)
+
 # Function to delete existing data for the current day
 def delete_existing_data(table_id, date_column="scrape_date"):
     today = datetime.now().date()
@@ -36,7 +40,6 @@ def delete_existing_data(table_id, date_column="scrape_date"):
 
 # Function to upload data to BigQuery
 def upload_to_bigquery(df, table_id):
-    delete_existing_data(table_id)  # Delete data for today before uploading new data
     df.to_gbq(
         table_id, 
         project_id=os.getenv("BIGQUERY_PROJECT_ID"), 
@@ -55,59 +58,64 @@ def read_urls(file_path="urls.txt"):
         print(f"Error: The file {file_path} was not found.")
         return []
 
-# Scraping function with retry mechanism
+# Scraping function with retry mechanism and semaphore for concurrency control
 async def scrape_single_table(url, browser, retries=3):
-    for attempt in range(retries):
-        try:
-            page = await browser.new_page()
-            await page.goto(url)
-            await page.wait_for_selector("table", timeout=90000)  # 90 seconds timeout
-            rows = await page.query_selector_all("table tr")
-            
-            if rows:
-                table_data = []
-                target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
-                headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
-
-                indices = [headers.index(col) for col in target_columns if col in headers]
-                for row in rows[1:]:
-                    cells = await row.query_selector_all("td")
-                    row_data = [await cells[i].inner_text() for i in indices]
-                    table_data.append(row_data)
+    async with semaphore:
+        for attempt in range(retries):
+            try:
+                page = await browser.new_page()
+                await page.goto(url)
+                await page.wait_for_selector("table", timeout=90000)  # 90 seconds timeout
+                rows = await page.query_selector_all("table tr")
                 
-                df = pd.DataFrame(table_data, columns=target_columns)
-                df["source"] = url.split('/')[-1]
-                df["scrape_date"] = datetime.now().date()
-                print(f"Data scraped successfully from {url}")
-                return df
+                if rows:
+                    table_data = []
+                    target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
+                    headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
 
-            else:
-                print(f"No rows loaded for {url}.")
-                return pd.DataFrame()
+                    indices = [headers.index(col) for col in target_columns if col in headers]
+                    for row in rows[1:]:
+                        cells = await row.query_selector_all("td")
+                        row_data = [await cells[i].inner_text() for i in indices]
+                        table_data.append(row_data)
+                    
+                    df = pd.DataFrame(table_data, columns=target_columns)
+                    df["source"] = url.split('/')[-1]
+                    df["scrape_date"] = datetime.now().date()
+                    print(f"Data scraped successfully from {url}")
+                    return df
 
-        except Exception as e:
-            print(f"Attempt {attempt + 1} failed for {url}: {e}")
-            if attempt < retries - 1:
-                print("Retrying...")
-        finally:
-            await page.close()
+                else:
+                    print(f"No rows loaded for {url}.")
+                    return pd.DataFrame()
 
-    print(f"Failed to scrape {url} after {retries} attempts.")
-    return pd.DataFrame()
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed for {url}: {e}")
+                if attempt < retries - 1:
+                    print("Retrying...")
+            finally:
+                await page.close()
+
+        print(f"Failed to scrape {url} after {retries} attempts.")
+        return pd.DataFrame()
 
 # Main function for scraping and uploading data
 async def scrape_and_store_data(table_id):
-    urls = read_urls("urls.txt")  # Load URLs from text file
+    # Remove any existing data for the current day once at the start
+    delete_existing_data(table_id)
+
+    # Load URLs from the text file
+    urls = read_urls("urls.txt")
     if not urls:
         print("No URLs found in urls.txt.")
         return
-
+          
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         tasks = [scrape_single_table(url, browser) for url in urls]
         results = await asyncio.gather(*tasks)
         
-        # Filter out empty DataFrames and combine results
+        # Combine and upload data
         data_to_upload = [df for df in results if not df.empty]
         if data_to_upload:
             combined_data = pd.concat(data_to_upload, ignore_index=True)
