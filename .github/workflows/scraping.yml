@@ -26,7 +26,7 @@ jobs:
 
     - name: Run Scraping Script
       run: |
-        python scraping_script.py  # Adjust if the file is named differently
+        python tcg_scraping_script.py  
 
     - name: Commit and Push Results
       run: |
