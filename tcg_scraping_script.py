@@ -1,6 +1,7 @@
 import pandas as pd
 import asyncio
 from datetime import datetime
+from pathlib import Path
 from playwright.async_api import async_playwright
 
 # Read URLs from text file
@@ -52,18 +53,33 @@ async def scrape_multiple_tables_concurrently(urls):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         
+        # Load existing data if available
+        combined_file = Path("combined_pokemon_prices.csv")
+        if combined_file.exists():
+            existing_data = pd.read_csv(combined_file)
+        else:
+            existing_data = pd.DataFrame()
+
+        # Run scraping tasks concurrently and collect results
         tasks = [scrape_single_table(url, browser) for url in urls]
-        all_data = await asyncio.gather(*tasks)
+        new_data = await asyncio.gather(*tasks)
+        new_data = pd.concat([df for df in new_data if not df.empty], ignore_index=True)
         
-        non_empty_data = [df for df in all_data if not df.empty]
-        
-        if non_empty_data:
-            combined_df = pd.concat(non_empty_data, ignore_index=True)
-            combined_df.to_csv("combined_pokemon_prices.csv", index=False)
+        if not new_data.empty:
+            # Filter out old data from the current scrape date and source
+            today = datetime.now().strftime("%Y-%m-%d")
+            if not existing_data.empty:
+                existing_data = existing_data[
+                    ~((existing_data["scrape_date"] == today) & (existing_data["source"].isin(new_data["source"])))
+                ]
+            
+            # Combine new data with existing data
+            combined_data = pd.concat([existing_data, new_data], ignore_index=True)
+            combined_data.to_csv("combined_pokemon_prices.csv", index=False)
             print("Data saved to combined_pokemon_prices.csv")
         else:
-            print("No data to save. All tables were empty or not found.")
-        
+            print("No new data scraped.")
+
         await browser.close()
 
 # Main entry point
