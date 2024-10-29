@@ -1,5 +1,6 @@
 import pandas as pd
 from google.oauth2 import service_account
+from google.cloud import bigquery
 from playwright.async_api import async_playwright
 import os
 import asyncio
@@ -19,14 +20,30 @@ credentials = service_account.Credentials.from_service_account_info({
     "client_x509_cert_url": os.getenv("BIGQUERY_CLIENT_CERT_URL")
 })
 
+# Initialize BigQuery client
+bq_client = bigquery.Client(credentials=credentials, project=os.getenv("BIGQUERY_PROJECT_ID"))
+
+# Function to delete existing data for the current day
+def delete_existing_data(table_id, date_column="scrape_date"):
+    today = datetime.now().date()
+    query = f"""
+        DELETE FROM `{table_id}`
+        WHERE DATE({date_column}) = "{today}"
+    """
+    query_job = bq_client.query(query)
+    query_job.result()  # Waits for the job to complete
+    print(f"Deleted existing data for {today} in table {table_id}")
+
 # Function to upload data to BigQuery
 def upload_to_bigquery(df, table_id):
+    delete_existing_data(table_id)  # Delete data for today before uploading new data
     df.to_gbq(
         table_id, 
         project_id=os.getenv("BIGQUERY_PROJECT_ID"), 
         if_exists="append", 
         credentials=credentials
     )
+    print(f"Data uploaded to BigQuery table {table_id}")
 
 # Read URLs from text file
 def read_urls(file_path="urls.txt"):
@@ -95,7 +112,6 @@ async def scrape_and_store_data(table_id):
         if data_to_upload:
             combined_data = pd.concat(data_to_upload, ignore_index=True)
             upload_to_bigquery(combined_data, table_id)
-            print(f"Data uploaded to BigQuery table {table_id}")
         else:
             print("No new data scraped.")
 
