@@ -58,9 +58,9 @@ async def scrape_multiple_tables_concurrently(urls):
         if combined_file.exists():
             existing_data = pd.read_csv(combined_file)
             
-            # Ensure columns are present in existing data
+            # Ensure "scrape_date" and "source" columns are present in existing_data
             if "scrape_date" not in existing_data.columns:
-                existing_data["scrape_date"] = None
+                existing_data["scrape_date"] = pd.NaT  # Set as NaT for missing dates
             if "source" not in existing_data.columns:
                 existing_data["source"] = None
         else:
@@ -75,8 +75,9 @@ async def scrape_multiple_tables_concurrently(urls):
             # Filter out existing data for today's date and same source
             today = datetime.now().strftime("%Y-%m-%d")
             if not existing_data.empty:
+                # Filter only if columns are present
                 existing_data = existing_data[
-                    ~((existing_data["scrape_date"] == today) & (existing_data["source"].isin(new_data["source"])))
+                    ~((existing_data["scrape_date"].astype(str) == today) & (existing_data["source"].isin(new_data["source"])))
                 ]
             
             # Combine new data with existing data
