@@ -3,7 +3,7 @@ name: Scrape Data
 on:
   schedule:
     - cron: '0 0 * * *'  # Runs daily at midnight; adjust as needed
-  workflow_dispatch:  # Allows manual trigger option
+  workflow_dispatch:  # Allows manual trigger
 
 jobs:
   scrape:
@@ -26,7 +26,7 @@ jobs:
 
     - name: Run Scraping Script
       run: |
-        python tcg_scraping_script.py  # Ensure this matches your script filename
+        python tcg_scraping_script.py
 
     - name: Commit and Push Results
       run: |
