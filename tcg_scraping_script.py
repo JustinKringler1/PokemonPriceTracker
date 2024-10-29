@@ -28,63 +28,83 @@ def upload_to_bigquery(df, table_id):
         credentials=credentials
     )
 
-# Scraping function
-async def scrape_single_table(url, browser):
-    page = await browser.new_page()
-    await page.goto(url)
-    
+# Read URLs from text file
+def read_urls(file_path="urls.txt"):
     try:
-        await page.wait_for_selector("table", timeout=90000)
-        rows = await page.query_selector_all("table tr")
-        
-        if rows:
-            table_data = []
-            target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
-            headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
+        with open(file_path, "r") as f:
+            urls = [line.strip() for line in f if line.strip()]
+        return urls
+    except FileNotFoundError:
+        print(f"Error: The file {file_path} was not found.")
+        return []
 
-            indices = [headers.index(col) for col in target_columns if col in headers]
-            for row in rows[1:]:
-                cells = await row.query_selector_all("td")
-                row_data = [await cells[i].inner_text() for i in indices]
-                table_data.append(row_data)
+# Scraping function with retry mechanism
+async def scrape_single_table(url, browser, retries=3):
+    for attempt in range(retries):
+        try:
+            page = await browser.new_page()
+            await page.goto(url)
+            await page.wait_for_selector("table", timeout=90000)  # 90 seconds timeout
+            rows = await page.query_selector_all("table tr")
             
-            df = pd.DataFrame(table_data, columns=target_columns)
-            df["source"] = url.split('/')[-1]
-            df["scrape_date"] = datetime.now().date()
-            print(f"Data scraped successfully from {url}")
-            return df
-        else:
-            print(f"No rows loaded for {url}.")
-            return pd.DataFrame()
+            if rows:
+                table_data = []
+                target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
+                headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
 
-    except Exception as e:
-        print(f"Error scraping {url}: {e}")
-        return pd.DataFrame()
+                indices = [headers.index(col) for col in target_columns if col in headers]
+                for row in rows[1:]:
+                    cells = await row.query_selector_all("td")
+                    row_data = [await cells[i].inner_text() for i in indices]
+                    table_data.append(row_data)
+                
+                df = pd.DataFrame(table_data, columns=target_columns)
+                df["source"] = url.split('/')[-1]
+                df["scrape_date"] = datetime.now().date()
+                print(f"Data scraped successfully from {url}")
+                return df
 
-    finally:
-        await page.close()
+            else:
+                print(f"No rows loaded for {url}.")
+                return pd.DataFrame()
+
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed for {url}: {e}")
+            if attempt < retries - 1:
+                print("Retrying...")
+        finally:
+            await page.close()
+
+    print(f"Failed to scrape {url} after {retries} attempts.")
+    return pd.DataFrame()
 
 # Main function for scraping and uploading data
-async def scrape_and_store_data(urls, table_id):
+async def scrape_and_store_data(table_id):
+    urls = read_urls("urls.txt")  # Load URLs from text file
+    if not urls:
+        print("No URLs found in urls.txt.")
+        return
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         tasks = [scrape_single_table(url, browser) for url in urls]
         results = await asyncio.gather(*tasks)
-        combined_data = pd.concat([df for df in results if not df.empty], ignore_index=True)
         
-        if not combined_data.empty:
+        # Filter out empty DataFrames and combine results
+        data_to_upload = [df for df in results if not df.empty]
+        if data_to_upload:
+            combined_data = pd.concat(data_to_upload, ignore_index=True)
             upload_to_bigquery(combined_data, table_id)
             print(f"Data uploaded to BigQuery table {table_id}")
         else:
             print("No new data scraped.")
-        
+
         await browser.close()
 
 # Main entry point
 def main():
-    urls = ["https://www.tcgplayer.com/..."]
-    table_id = "pokemon_data.pokemon_prices"  # Dataset.table name in BigQuery
-    asyncio.run(scrape_and_store_data(urls, table_id))
+    table_id = "pokemon_data.pokemon_prices"  # BigQuery dataset.table name
+    asyncio.run(scrape_and_store_data(table_id))
 
 if __name__ == "__main__":
     main()
