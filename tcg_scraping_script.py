@@ -57,6 +57,12 @@ async def scrape_multiple_tables_concurrently(urls):
         combined_file = Path("combined_pokemon_prices.csv")
         if combined_file.exists():
             existing_data = pd.read_csv(combined_file)
+            
+            # Ensure columns are present in existing data
+            if "scrape_date" not in existing_data.columns:
+                existing_data["scrape_date"] = None
+            if "source" not in existing_data.columns:
+                existing_data["source"] = None
         else:
             existing_data = pd.DataFrame()
 
@@ -66,7 +72,7 @@ async def scrape_multiple_tables_concurrently(urls):
         new_data = pd.concat([df for df in new_data if not df.empty], ignore_index=True)
         
         if not new_data.empty:
-            # Filter out old data from the current scrape date and source
+            # Filter out existing data for today's date and same source
             today = datetime.now().strftime("%Y-%m-%d")
             if not existing_data.empty:
                 existing_data = existing_data[
