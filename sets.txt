@@ -19,7 +19,6 @@ secret-wonders
 triumphant
 plasma-freeze
 power-keepers
-supreme-victors
 noble-victories
 dark-explorers
 xy-base-set
@@ -36,8 +35,6 @@ unseen-forces
 unleashed
 black-and-white
 mcdonalds-promos-2011
-heartgold-soulsilver
-undaunted
 deoxys
 great-encounters
 platinum
