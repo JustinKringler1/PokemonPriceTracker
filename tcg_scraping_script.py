@@ -68,9 +68,24 @@ async def scrape_single_table(url, browser, retries=3):
     print(f"Failed to scrape complete data from {url} after {retries} attempts.")
     return pd.DataFrame()  # Return empty if incomplete after retries
 
-
+def delete_today_data():
+    client = bigquery.Client.from_service_account_json("bigquery-key.json")
+    table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
+    
+    # Construct the query to delete rows with today's date
+    today_date = datetime.now().date().isoformat()
+    delete_query = f"""
+        DELETE FROM `{table_id}`
+        WHERE scrape_date = '{today_date}'
+    """
+    print(f"Deleting data from BigQuery with today's date ({today_date})...")
+    query_job = client.query(delete_query)
+    query_job.result()  # Wait for the delete job to complete
+    print(f"Data with today's date ({today_date}) has been deleted from BigQuery.")
 
 async def scrape_and_store_data(urls):
+    delete_today_data()  # Delete data for today before starting the scrape
+
     all_data = []
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -88,7 +103,6 @@ async def scrape_and_store_data(urls):
         combined_data = pd.concat(all_data, ignore_index=True)
         print(f"Total rows scraped across all tables: {len(combined_data)}")
         upload_to_bigquery(combined_data)
-
 
 def upload_to_bigquery(df):
     df['Market Price'] = df['Market Price'].astype(str)
@@ -113,7 +127,6 @@ def upload_to_bigquery(df):
     job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
     job.result()
     print(f"Uploaded {len(df)} rows to {table_id}.")
-
 
 def read_urls(filename="sets.txt"):
     with open(filename, "r") as f:
