@@ -88,16 +88,19 @@ async def scrape_and_store_data(urls):
 
 # Ensure upload_to_bigquery performs data cleanup
 def upload_to_bigquery(df):
-    # Clean 'Market Price' column by removing dollar signs and converting to numeric
+    # Remove dollar signs and convert 'Market Price' to numeric if it exists
     if 'Market Price' in df.columns:
-        # Remove dollar signs and force conversion to numeric, setting errors to NaN
         df['Market Price'] = pd.to_numeric(df['Market Price'].replace('[\$,]', '', regex=True), errors='coerce')
+    
+    # Clean all string columns to ensure BigQuery compatibility
+    for col in df.select_dtypes(include=['object']).columns:
+        df[col] = df[col].astype(str).str.encode('utf-8', 'ignore').str.decode('utf-8')
 
     # BigQuery setup
     client = bigquery.Client.from_service_account_json("bigquery-key.json")
     table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
 
-    # BigQuery job configuration
+    # Define schema
     job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
 
     # Upload to BigQuery
