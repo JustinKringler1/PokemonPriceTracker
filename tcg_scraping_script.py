@@ -88,24 +88,16 @@ async def scrape_and_store_data(urls):
 
 # Ensure upload_to_bigquery performs data cleanup
 def upload_to_bigquery(df):
-    # Remove dollar signs and convert 'Market Price' to numeric if it exists
+    # Remove dollar signs and convert 'Market Price' to numeric
     if 'Market Price' in df.columns:
         df['Market Price'] = pd.to_numeric(df['Market Price'].replace('[\$,]', '', regex=True), errors='coerce')
-
-    # Ensure all object columns are consistent strings in UTF-8 encoding
-    for col in df.select_dtypes(include=['object']).columns:
-        df[col] = df[col].astype(str).apply(lambda x: x.encode('utf-8', 'ignore').decode('utf-8') if isinstance(x, str) else x)
-
-    # Convert specific columns explicitly to appropriate data types if required
-    df['Market Price'] = pd.to_numeric(df['Market Price'], errors='coerce')
     
-    # Ensure scrape_date is in YYYY-MM-DD format for BigQuery DATE type
+    # Ensure 'scrape_date' is in date format without time for BigQuery DATE type
     df['scrape_date'] = pd.to_datetime(df['scrape_date'], errors='coerce').dt.strftime('%Y-%m-%d')
 
-    # Check for lingering byte data in object columns
-    for col in df.columns:
-        if df[col].dtype == 'object' and df[col].apply(lambda x: isinstance(x, bytes)).any():
-            df[col] = df[col].apply(lambda x: x.decode('utf-8') if isinstance(x, bytes) else x)
+    # Convert all object columns to UTF-8 encoded strings to prevent byte issues
+    for col in df.select_dtypes(include=['object']).columns:
+        df[col] = df[col].astype(str).apply(lambda x: x.encode('utf-8', 'ignore').decode('utf-8') if isinstance(x, str) else x)
 
     # Initialize BigQuery client and define table ID
     client = bigquery.Client.from_service_account_json("bigquery-key.json")
@@ -114,16 +106,15 @@ def upload_to_bigquery(df):
     # Define schema and load job configuration
     job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
 
-    # Print dataframe types before upload for debugging
+    # Debugging info
     print("Data types before upload:", df.dtypes)
+    print(df.head())  # Print sample rows to inspect data
 
     # Upload to BigQuery
     print("Uploading to BigQuery...")
     job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
     job.result()  # Wait for the job to complete
-
     print(f"Uploaded {len(df)} rows to {table_id}.")
-
 
 
 def read_urls(filename="sets.txt"):
