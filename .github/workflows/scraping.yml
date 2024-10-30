@@ -31,6 +31,9 @@ jobs:
         echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
         export GOOGLE_APPLICATION_CREDENTIALS=bigquery-key.json
 
+    - name: Enable Debug Logging
+      run: echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
+
     - name: Run Scraping Script
       run: |
         python tcg_scraping_script.py
@@ -41,3 +44,13 @@ jobs:
         BIGQUERY_PRIVATE_KEY: ${{ secrets.BIGQUERY_PRIVATE_KEY }}
         BIGQUERY_CLIENT_ID: ${{ secrets.BIGQUERY_CLIENT_ID }}
         BIGQUERY_CLIENT_CERT_URL: ${{ secrets.BIGQUERY_CLIENT_CERT_URL }}
+
+    # Upload debug artifacts for diagnostics in case of failure
+    - name: Upload debug artifacts
+      if: failure()  # Uploads only if the job fails
+      uses: actions/upload-artifact@v3
+      with:
+        name: debug-files
+        path: |
+          *.png
+          *.html
