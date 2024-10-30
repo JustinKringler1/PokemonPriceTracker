@@ -91,17 +91,30 @@ def upload_to_bigquery(df):
     # Remove dollar signs and convert 'Market Price' to numeric if it exists
     if 'Market Price' in df.columns:
         df['Market Price'] = pd.to_numeric(df['Market Price'].replace('[\$,]', '', regex=True), errors='coerce')
-    
-    # Clean all string columns to ensure BigQuery compatibility
+
+    # Ensure all string columns are clean and UTF-8 encoded
     for col in df.select_dtypes(include=['object']).columns:
         df[col] = df[col].astype(str).str.encode('utf-8', 'ignore').str.decode('utf-8')
 
-    # BigQuery setup
+    # Check and convert any potential problematic data types
+    for col in df.columns:
+        # Convert any remaining byte data
+        if df[col].dtype == 'object' and df[col].apply(lambda x: isinstance(x, bytes)).any():
+            df[col] = df[col].apply(lambda x: x.decode('utf-8') if isinstance(x, bytes) else x)
+        
+        # Set columns to expected data types if needed
+        if col == 'Market Price':
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # Initialize BigQuery client and define table
     client = bigquery.Client.from_service_account_json("bigquery-key.json")
     table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
 
-    # Define schema
+    # Define schema and load job configuration
     job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
+
+    # Print dataframe types before upload for debugging
+    print("Data types before upload:", df.dtypes)
 
     # Upload to BigQuery
     print("Uploading to BigQuery...")
@@ -109,6 +122,7 @@ def upload_to_bigquery(df):
     job.result()  # Wait for the job to complete
 
     print(f"Uploaded {len(df)} rows to {table_id}.")
+
 
 
 def read_urls(filename="sets.txt"):
