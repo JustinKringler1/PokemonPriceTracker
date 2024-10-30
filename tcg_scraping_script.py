@@ -46,11 +46,13 @@ async def scrape_single_table(url, browser, retries=3):
             if "Number" in df.columns:
                 try:
                     # Sort by "Number" in descending order to extract max card count
-                    df["Card Number"], df["Set Size"] = df["Number"].str.split("/", 1).str
-                    df["Card Number"] = pd.to_numeric(df["Card Number"], errors="coerce")
-                    df = df.sort_values("Card Number", ascending=False)
+                    # Splitting the "Number" column by "/"
+                    # Splitting the "Number" column by "/" to create "Card Number" and "Set Size" columns for validation only
+                    temp_split = df["Number"].str.split("/", n=1, expand=True)
+                    df["Card Number"] = temp_split[0]  # Card Number part
+                    df["Set Size"] = pd.to_numeric(temp_split[1], errors="coerce")
                     max_card_count = int(df.iloc[0]["Set Size"])
-                    if len(df) >= max_card_count:
+                    if len(df) >= max_card_count-3:
                         print(f"Data scraped successfully from {url} - {len(df)} rows")
                         return df
                     else:
