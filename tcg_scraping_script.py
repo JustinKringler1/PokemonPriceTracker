@@ -85,8 +85,12 @@ async def scrape_and_store_data(urls):
         # Upload to BigQuery
         upload_to_bigquery(combined_data)
 
+from google.cloud import bigquery
+
 def upload_to_bigquery(df):
-    client = bigquery.Client()
+    # Explicitly set the path to credentials
+    client = bigquery.Client.from_service_account_json("bigquery-key.json")
+    
     job_config = bigquery.LoadJobConfig(
         schema=[
             bigquery.SchemaField("Product Name", "STRING"),
@@ -100,11 +104,12 @@ def upload_to_bigquery(df):
         ],
         write_disposition="WRITE_APPEND",
     )
-    
+
     print("Uploading to BigQuery...")
     job = client.load_table_from_dataframe(df, TABLE_ID, job_config=job_config)
     job.result()  # Wait for the job to complete
     print("Upload to BigQuery completed.")
+
 
 def read_urls(filename="sets.txt"):
     with open(filename, "r") as f:
