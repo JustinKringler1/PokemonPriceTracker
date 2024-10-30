@@ -43,19 +43,21 @@ def delete_existing_data(table_id, date_column="scrape_date"):
 
 # Function to upload data to BigQuery
 def upload_to_bigquery(df, table_id):
-    df.to_gbq(
-        table_id, 
-        project_id=os.getenv("BIGQUERY_PROJECT_ID"), 
-        if_exists="append", 
-        credentials=credentials
-    )
-    print(f"Data uploaded to BigQuery table {table_id}")
+    try:
+        df.to_gbq(
+            table_id, 
+            project_id=os.getenv("BIGQUERY_PROJECT_ID"), 
+            if_exists="append", 
+            credentials=credentials
+        )
+        print(f"Data uploaded to BigQuery table {table_id}")
+    except Exception as e:
+        print("Error uploading to BigQuery:", e)
 
 # Read URL suffixes from sets.txt file and construct full URLs
 def read_sets(file_path="sets.txt"):
     try:
         with open(file_path, "r") as f:
-            # Construct full URLs by appending each suffix to the BASE_URL
             urls = [BASE_URL + line.strip() for line in f if line.strip()]
         return urls
     except FileNotFoundError:
@@ -100,7 +102,6 @@ async def scrape_single_table(url, browser, retries=3):
                     print("Retrying...")
 
             finally:
-                # Close the page if it was successfully created
                 if page:
                     await page.close()
 
@@ -127,6 +128,8 @@ async def scrape_and_store_data(table_id):
         data_to_upload = [df for df in results if isinstance(df, pd.DataFrame) and not df.empty]
         if data_to_upload:
             combined_data = pd.concat(data_to_upload, ignore_index=True)
+            print("Data ready for upload, rows:", len(combined_data))
+            print("Sample data:", combined_data.head())
             upload_to_bigquery(combined_data, table_id)
         else:
             print("No new data scraped.")
