@@ -45,9 +45,9 @@ jobs:
         BIGQUERY_CLIENT_ID: ${{ secrets.BIGQUERY_CLIENT_ID }}
         BIGQUERY_CLIENT_CERT_URL: ${{ secrets.BIGQUERY_CLIENT_CERT_URL }}
 
-    # Upload debug artifacts for diagnostics in case of failure
+    # Upload debug artifacts for diagnostics regardless of success or failure
     - name: Upload debug artifacts
-      if: failure()  # Uploads only if the job fails
+      if: always()  # Uploads regardless of success or failure
       uses: actions/upload-artifact@v3
       with:
         name: debug-files
