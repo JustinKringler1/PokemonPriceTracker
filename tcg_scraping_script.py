@@ -27,7 +27,7 @@ credentials = service_account.Credentials.from_service_account_info({
 bq_client = bigquery.Client(credentials=credentials, project=os.getenv("BIGQUERY_PROJECT_ID"))
 
 # Define concurrency limit
-CONCURRENT_REQUESTS = 10
+CONCURRENT_REQUESTS = 5  # Lowered concurrency to reduce load on the server
 semaphore = asyncio.Semaphore(CONCURRENT_REQUESTS)
 
 # Function to delete existing data for the current day
@@ -70,9 +70,10 @@ async def scrape_single_table(url, browser, retries=3):
     async with semaphore:
         for attempt in range(retries):
             try:
+                print(f"Attempting to scrape {url} (Attempt {attempt + 1})")
                 page = await browser.new_page()
-                await page.goto(url)
-                await page.wait_for_selector("table", timeout=90000)  # 90 seconds timeout
+                await page.goto(url, timeout=120000)  # Increased timeout to 120 seconds
+                await page.wait_for_selector("table", timeout=120000)  # 120 seconds timeout
                 rows = await page.query_selector_all("table tr")
                 
                 if rows:
