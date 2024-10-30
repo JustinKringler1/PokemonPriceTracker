@@ -1,7 +1,7 @@
 import pandas as pd
 from google.oauth2 import service_account
 from google.cloud import bigquery
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, Page
 import os
 import asyncio
 from datetime import datetime
@@ -51,8 +51,8 @@ def upload_to_bigquery(df, table_id):
     )
     print(f"Data uploaded to BigQuery table {table_id}")
 
-# Read URL suffixes from text file and construct full URLs
-def read_urls(file_path="sets.txt"):
+# Read URL suffixes from sets.txt file and construct full URLs
+def read_sets(file_path="sets.txt"):
     try:
         with open(file_path, "r") as f:
             # Construct full URLs by appending each suffix to the BASE_URL
@@ -64,6 +64,7 @@ def read_urls(file_path="sets.txt"):
 
 # Scraping function with retry mechanism and semaphore for concurrency control
 async def scrape_single_table(url, browser, retries=3):
+    page: Page | None = None  # Initialize `page` as None
     async with semaphore:
         for attempt in range(retries):
             try:
@@ -97,8 +98,11 @@ async def scrape_single_table(url, browser, retries=3):
                 print(f"Attempt {attempt + 1} failed for {url}: {e}")
                 if attempt < retries - 1:
                     print("Retrying...")
+
             finally:
-                await page.close()
+                # Close the page if it was successfully created
+                if page:
+                    await page.close()
 
         print(f"Failed to scrape {url} after {retries} attempts.")
         return pd.DataFrame()
@@ -108,8 +112,8 @@ async def scrape_and_store_data(table_id):
     # Remove any existing data for the current day once at the start
     delete_existing_data(table_id)
 
-    # Load URLs from the text file
-    urls = read_urls("sets.txt")
+    # Load URLs from the sets.txt file
+    urls = read_sets("sets.txt")
     if not urls:
         print("No URLs found in sets.txt.")
         return
@@ -117,10 +121,10 @@ async def scrape_and_store_data(table_id):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         tasks = [scrape_single_table(url, browser) for url in urls]
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Combine and upload data
-        data_to_upload = [df for df in results if not df.empty]
+        # Combine and upload data, ignoring empty results or errors
+        data_to_upload = [df for df in results if isinstance(df, pd.DataFrame) and not df.empty]
         if data_to_upload:
             combined_data = pd.concat(data_to_upload, ignore_index=True)
             upload_to_bigquery(combined_data, table_id)
