@@ -79,28 +79,35 @@ def upload_to_bigquery(df, table_id):
 
 # Scraping function with retry mechanism and semaphore for concurrency control
 async def scrape_single_table(url, browser, retries=3):
-    page: Page | None = None  # Initialize `page` as None
     async with semaphore:
         for attempt in range(retries):
             try:
                 logger.debug(f"Attempting to scrape {url} (Attempt {attempt + 1})")
                 page = await browser.new_page()
 
-                # Log network requests to troubleshoot
-                page.on("response", lambda response: logger.debug(f"Request to {response.url} with status {response.status}"))
-
-                # Load the URL and wait for network to be idle
-                response = await page.goto(url)
+                # Attempt to load the URL with a high timeout and wait for the network to be idle
+                response = await page.goto(url, timeout=180000)
                 await page.wait_for_load_state("networkidle")
 
-                # Scroll down the page to potentially load dynamic content
-                await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
-                await asyncio.sleep(5)  # Give time for additional content to load
+                # Wait for the table to be visible with an increased timeout
+                try:
+                    await page.wait_for_selector("table", timeout=180000)
+                except Exception as e:
+                    logger.error(f"Table not found on {url}. Error: {e}")
+                    await page.screenshot(path=f"{url.split('/')[-1]}_screenshot.png")
+                    html_content = await page.content()
+                    with open(f"{url.split('/')[-1]}_content.html", "w") as file:
+                        file.write(html_content)
+                    continue
 
-                # Retry table selector check
+                # Scroll down the page slightly, sometimes needed for JavaScript to load content
+                await page.evaluate("window.scrollBy(0, document.body.scrollHeight / 2)")
+                await asyncio.sleep(5)
+
+                # Query table rows
                 rows = await page.query_selector_all("table tr")
                 if not rows:
-                    logger.warning(f"No table rows found for {url}. Saving screenshot and HTML for inspection.")
+                    logger.warning(f"No rows found in table for {url}. Saving screenshot and HTML for inspection.")
                     await page.screenshot(path=f"{url.split('/')[-1]}_screenshot.png")
                     html_content = await page.content()
                     with open(f"{url.split('/')[-1]}_content.html", "w") as file:
