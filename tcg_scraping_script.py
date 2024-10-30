@@ -78,6 +78,9 @@ def upload_to_bigquery(df, table_id):
             logger.error(f"Error uploading batch {start} to {start + BATCH_SIZE}: {e}")
 
 # Scraping function with retry mechanism and semaphore for concurrency control
+# Ensure artifacts directory exists
+os.makedirs("artifacts", exist_ok=True)
+
 async def scrape_single_table(url, browser, retries=3):
     async with semaphore:
         for attempt in range(retries):
@@ -94,9 +97,9 @@ async def scrape_single_table(url, browser, retries=3):
                     await page.wait_for_selector("table", timeout=180000)
                 except Exception as e:
                     logger.error(f"Table not found on {url}. Error: {e}")
-                    await page.screenshot(path=f"{url.split('/')[-1]}_screenshot_failed.png")
+                    await page.screenshot(path=f"artifacts/{url.split('/')[-1]}_screenshot_failed.png")
                     html_content = await page.content()
-                    with open(f"{url.split('/')[-1]}_content_failed.html", "w") as file:
+                    with open(f"artifacts/{url.split('/')[-1]}_content_failed.html", "w") as file:
                         file.write(html_content)
                     continue
 
@@ -104,9 +107,9 @@ async def scrape_single_table(url, browser, retries=3):
                 rows = await page.query_selector_all("table tr")
                 if not rows:
                     logger.warning(f"No rows found in table for {url}. Saving screenshot and HTML for inspection.")
-                    await page.screenshot(path=f"{url.split('/')[-1]}_screenshot_no_rows.png")
+                    await page.screenshot(path=f"artifacts/{url.split('/')[-1]}_screenshot_no_rows.png")
                     html_content = await page.content()
-                    with open(f"{url.split('/')[-1]}_content_no_rows.html", "w") as file:
+                    with open(f"artifacts/{url.split('/')[-1]}_content_no_rows.html", "w") as file:
                         file.write(html_content)
                     return pd.DataFrame()
 
@@ -130,9 +133,9 @@ async def scrape_single_table(url, browser, retries=3):
                 # Force save screenshot and HTML if no data was scraped
                 if df.empty:
                     logger.warning(f"No data found in the table on {url}. Saving screenshot and HTML for inspection.")
-                    await page.screenshot(path=f"{url.split('/')[-1]}_screenshot_empty.png")
+                    await page.screenshot(path=f"artifacts/{url.split('/')[-1]}_screenshot_empty.png")
                     html_content = await page.content()
-                    with open(f"{url.split('/')[-1]}_content_empty.html", "w") as file:
+                    with open(f"artifacts/{url.split('/')[-1]}_content_empty.html", "w") as file:
                         file.write(html_content)
 
                 logger.debug(f"Data scraped successfully from {url} - {len(df)} rows")
