@@ -26,9 +26,9 @@ credentials = service_account.Credentials.from_service_account_info({
 # Initialize BigQuery client
 bq_client = bigquery.Client(credentials=credentials, project=os.getenv("BIGQUERY_PROJECT_ID"))
 
-# Define concurrency limit
-CONCURRENT_REQUESTS = 5  # Lowered concurrency to reduce load on the server
-semaphore = asyncio.Semaphore(CONCURRENT_REQUESTS)
+# Define concurrency limit and batch size
+CONCURRENT_REQUESTS = 5
+BATCH_SIZE = 1000
 
 # Function to delete existing data for the current day
 def delete_existing_data(table_id, date_column="scrape_date"):
@@ -41,18 +41,21 @@ def delete_existing_data(table_id, date_column="scrape_date"):
     query_job.result()  # Waits for the job to complete
     print(f"Deleted existing data for {today} in table {table_id}")
 
-# Function to upload data to BigQuery
+# Function to upload data to BigQuery in batches with error handling
 def upload_to_bigquery(df, table_id):
-    try:
-        df.to_gbq(
-            table_id, 
-            project_id=os.getenv("BIGQUERY_PROJECT_ID"), 
-            if_exists="append", 
-            credentials=credentials
-        )
-        print(f"Data uploaded to BigQuery table {table_id}")
-    except Exception as e:
-        print("Error uploading to BigQuery:", e)
+    for start in range(0, len(df), BATCH_SIZE):
+        batch = df.iloc[start:start + BATCH_SIZE]
+        print(f"Uploading batch {start} to {start + BATCH_SIZE}")
+        try:
+            batch.to_gbq(
+                table_id, 
+                project_id=os.getenv("BIGQUERY_PROJECT_ID"), 
+                if_exists="append", 
+                credentials=credentials
+            )
+            print(f"Batch {start} to {start + BATCH_SIZE} uploaded successfully.")
+        except Exception as e:
+            print(f"Error uploading batch {start} to {start + BATCH_SIZE}:", e)
 
 # Read URL suffixes from sets.txt file and construct full URLs
 def read_sets(file_path="sets.txt"):
@@ -109,37 +112,44 @@ async def scrape_single_table(url, browser, retries=3):
         print(f"Failed to scrape {url} after {retries} attempts.")
         return pd.DataFrame()
 
+# Sequentially process each batch of URLs
+async def process_batches(urls, browser, table_id):
+    for i in range(0, len(urls), CONCURRENT_REQUESTS):
+        batch_urls = urls[i:i + CONCURRENT_REQUESTS]
+        print(f"Processing batch {i // CONCURRENT_REQUESTS + 1} of URLs")
+        
+        # Gather the batch results
+        tasks = [scrape_single_table(url, browser) for url in batch_urls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Collect data from successful scrapes
+        data_to_upload = [df for df in results if isinstance(df, pd.DataFrame) and not df.empty]
+        
+        if data_to_upload:
+            combined_data = pd.concat(data_to_upload, ignore_index=True)
+            print("Total rows in combined_data before upload:", len(combined_data))
+            print("Preview of combined_data:", combined_data.head(10))
+            upload_to_bigquery(combined_data, table_id)
+        else:
+            print(f"No data to upload for batch {i // CONCURRENT_REQUESTS + 1}")
+
 # Main function for scraping and uploading data
 async def scrape_and_store_data(table_id):
-    # Remove any existing data for the current day once at the start
-    delete_existing_data(table_id)
-
     # Load URLs from the sets.txt file
     urls = read_sets("sets.txt")
     if not urls:
         print("No URLs found in sets.txt.")
         return
-          
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        tasks = [scrape_single_table(url, browser) for url in urls]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Combine and upload data, ignoring empty results or errors
-        data_to_upload = [df for df in results if isinstance(df, pd.DataFrame) and not df.empty]
-        if data_to_upload:
-            combined_data = pd.concat(data_to_upload, ignore_index=True)
-            print("Data ready for upload, rows:", len(combined_data))
-            print("Sample data:", combined_data.head())
-            upload_to_bigquery(combined_data, table_id)
-        else:
-            print("No new data scraped.")
-
+        await process_batches(urls, browser, table_id)
         await browser.close()
 
 # Main entry point
 def main():
     table_id = "pokemon_data.pokemon_prices"  # BigQuery dataset.table name
+    delete_existing_data(table_id)  # Delete only once before scraping begins
     asyncio.run(scrape_and_store_data(table_id))
 
 if __name__ == "__main__":
