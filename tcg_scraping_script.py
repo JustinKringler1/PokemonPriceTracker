@@ -21,9 +21,10 @@ async def scrape_single_table(url, browser):
         await page.goto(url, timeout=180000)
         await page.wait_for_load_state("networkidle")
 
-        # Wait for the table to be visible, or save a screenshot/HTML if missing
+        # Wait for the table to be visible
         try:
             await page.wait_for_selector("table", timeout=180000)
+            await asyncio.sleep(10)  # Wait an additional 10 seconds to ensure rows are loaded
         except Exception as e:
             print(f"Table not found on {url}. Saving debug files.")
             await page.screenshot(path=f"artifacts/{url.split('/')[-1]}_screenshot_failed.png")
