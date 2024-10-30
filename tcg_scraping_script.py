@@ -11,18 +11,20 @@ DATASET_ID = "pokemon_data"
 TABLE_ID = f"{PROJECT_ID}.{DATASET_ID}.pokemon_prices"
 
 async def scrape_single_table(url, browser, retries=3):
-    page = await browser.new_page()
-    try:
-        # Load the URL and wait for it to be ready
-        await page.goto(url, timeout=180000)
-        await page.wait_for_load_state("networkidle")
-        await page.wait_for_selector("table", timeout=180000)
-        await asyncio.sleep(10)  # Extra wait time for rows to load
+    for attempt in range(retries):
+        page = await browser.new_page()
+        try:
+            # Load the URL and wait for it to be ready
+            await page.goto(url, timeout=180000)
+            await page.wait_for_load_state("networkidle")
+            await page.wait_for_selector("table", timeout=180000)
+            await asyncio.sleep(10)  # Extra wait time for rows to load
 
-        for attempt in range(retries):
+            # Scrape table rows
             rows = await page.query_selector_all("table tr")
             if not rows:
                 print(f"No rows found in table for {url} on attempt {attempt + 1}. Retrying...")
+                await page.close()
                 continue
 
             # Extract headers and data
@@ -45,30 +47,32 @@ async def scrape_single_table(url, browser, retries=3):
             # Sort by "Number" and check for completeness
             if "Number" in df.columns:
                 try:
-                    # Sort by "Number" in descending order to extract max card count
-                    # Splitting the "Number" column by "/"
-                    # Splitting the "Number" column by "/" to create "Card Number" and "Set Size" columns for validation only
+                    # Split the "Number" column by "/" to get "Card Number" and "Set Size" for validation only
                     temp_split = df["Number"].str.split("/", n=1, expand=True)
                     df["Card Number"] = temp_split[0]  # Card Number part
                     df["Set Size"] = pd.to_numeric(temp_split[1], errors="coerce")
-                    max_card_count = int(df.iloc[0]["Set Size"])
-                    if len(df) >= max_card_count-3:
+                    max_card_count = int(df["Set Size"].max())  # Take the maximum "Set Size" found
+                    if len(df) >= max_card_count - 3:
                         print(f"Data scraped successfully from {url} - {len(df)} rows")
                         return df
                     else:
                         print(f"Incomplete data for {url}. Expected {max_card_count}, got {len(df)} rows.")
                 except Exception as e:
                     print(f"Error parsing 'Number' column for {url}: {e}")
-            
-            # Retry scraping if incomplete
+
+            # Close page and retry scraping if incomplete
+            await page.close()
             print(f"Retrying scrape for {url}, attempt {attempt + 2}...")
-            await asyncio.sleep(5)  # Wait before retrying
 
-        print(f"Failed to scrape complete data from {url} after {retries} attempts.")
-        return pd.DataFrame()  # Return empty if incomplete after retries
+        except Exception as e:
+            print(f"Failed to scrape {url} on attempt {attempt + 1} due to error: {e}")
+            await page.close()
 
-    finally:
-        await page.close()
+        await asyncio.sleep(5)  # Wait before retrying
+
+    print(f"Failed to scrape complete data from {url} after {retries} attempts.")
+    return pd.DataFrame()  # Return empty if incomplete after retries
+
 
 async def scrape_and_store_data(urls):
     all_data = []
