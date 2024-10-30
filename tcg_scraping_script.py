@@ -92,21 +92,22 @@ def upload_to_bigquery(df):
     if 'Market Price' in df.columns:
         df['Market Price'] = pd.to_numeric(df['Market Price'].replace('[\$,]', '', regex=True), errors='coerce')
 
-    # Ensure all string columns are clean and UTF-8 encoded
+    # Ensure all object columns are consistent strings in UTF-8 encoding
     for col in df.select_dtypes(include=['object']).columns:
-        df[col] = df[col].astype(str).str.encode('utf-8', 'ignore').str.decode('utf-8')
+        df[col] = df[col].astype(str).apply(lambda x: x.encode('utf-8', 'ignore').decode('utf-8') if isinstance(x, str) else x)
 
-    # Check and convert any potential problematic data types
+    # Convert specific columns explicitly to appropriate data types if required
+    df['Market Price'] = pd.to_numeric(df['Market Price'], errors='coerce')
+    
+    # Ensure scrape_date is in YYYY-MM-DD format for BigQuery DATE type
+    df['scrape_date'] = pd.to_datetime(df['scrape_date'], errors='coerce').dt.strftime('%Y-%m-%d')
+
+    # Check for lingering byte data in object columns
     for col in df.columns:
-        # Convert any remaining byte data
         if df[col].dtype == 'object' and df[col].apply(lambda x: isinstance(x, bytes)).any():
             df[col] = df[col].apply(lambda x: x.decode('utf-8') if isinstance(x, bytes) else x)
-        
-        # Set columns to expected data types if needed
-        if col == 'Market Price':
-            df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # Initialize BigQuery client and define table
+    # Initialize BigQuery client and define table ID
     client = bigquery.Client.from_service_account_json("bigquery-key.json")
     table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
 
