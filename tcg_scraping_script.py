@@ -50,7 +50,7 @@ async def scrape_single_table(url, browser, retries=3):
                     df["Card Number"] = pd.to_numeric(df["Card Number"], errors="coerce")
                     df = df.sort_values("Card Number", ascending=False)
                     max_card_count = int(df.iloc[0]["Set Size"])
-                    if len(df) >= max_card_count-10:
+                    if len(df) >= max_card_count:
                         print(f"Data scraped successfully from {url} - {len(df)} rows")
                         return df
                     else:
