@@ -85,14 +85,11 @@ async def scrape_single_table(url, browser, retries=3):
                 logger.debug(f"Attempting to scrape {url} (Attempt {attempt + 1})")
                 page = await browser.new_page()
 
-                # Log network requests to troubleshoot
-                page.on("response", lambda response: logger.debug(f"Request to {response.url} with status {response.status}"))
-
-                # Load the URL and wait for network to be idle
+                # Load the URL and wait for the network to be idle
                 response = await page.goto(url, timeout=180000)
                 await page.wait_for_load_state("networkidle")
 
-                # Wait for the table to be visible with a timeout and take a screenshot if it’s missing
+                # Wait for the table to be visible, with an increased timeout
                 try:
                     await page.wait_for_selector("table", timeout=180000)
                 except Exception as e:
@@ -103,17 +100,13 @@ async def scrape_single_table(url, browser, retries=3):
                         file.write(html_content)
                     continue
 
-                # Scroll down the page to potentially load dynamic content
-                await page.evaluate("window.scrollBy(0, document.body.scrollHeight / 2)")
-                await asyncio.sleep(5)
-
-                # Query the table rows after scrolling and waiting
+                # Query the table rows and scrape data
                 rows = await page.query_selector_all("table tr")
                 if not rows:
                     logger.warning(f"No rows found in table for {url}. Saving screenshot and HTML for inspection.")
-                    await page.screenshot(path=f"{url.split('/')[-1]}_screenshot_failed.png")
+                    await page.screenshot(path=f"{url.split('/')[-1]}_screenshot_no_rows.png")
                     html_content = await page.content()
-                    with open(f"{url.split('/')[-1]}_content_failed.html", "w") as file:
+                    with open(f"{url.split('/')[-1]}_content_no_rows.html", "w") as file:
                         file.write(html_content)
                     return pd.DataFrame()
 
@@ -133,6 +126,15 @@ async def scrape_single_table(url, browser, retries=3):
                 df = pd.DataFrame(table_data, columns=[headers[i] for i in indices])
                 df["source"] = url.split('/')[-1]
                 df["scrape_date"] = datetime.now().date()
+                
+                # Force save screenshot and HTML if no data was scraped
+                if df.empty:
+                    logger.warning(f"No data found in the table on {url}. Saving screenshot and HTML for inspection.")
+                    await page.screenshot(path=f"{url.split('/')[-1]}_screenshot_empty.png")
+                    html_content = await page.content()
+                    with open(f"{url.split('/')[-1]}_content_empty.html", "w") as file:
+                        file.write(html_content)
+
                 logger.debug(f"Data scraped successfully from {url} - {len(df)} rows")
                 return df
 
@@ -147,6 +149,7 @@ async def scrape_single_table(url, browser, retries=3):
 
         logger.warning(f"Failed to scrape {url} after {retries} attempts.")
         return pd.DataFrame()
+
 
 # Sequentially process each batch of URLs
 async def process_batches(urls, browser, table_id):
