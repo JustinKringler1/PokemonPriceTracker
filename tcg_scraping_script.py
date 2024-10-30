@@ -85,30 +85,27 @@ async def scrape_and_store_data(urls):
         # Upload to BigQuery
         upload_to_bigquery(combined_data)
 
-from google.cloud import bigquery
 
+# Ensure upload_to_bigquery performs data cleanup
 def upload_to_bigquery(df):
-    # Explicitly set the path to credentials
-    client = bigquery.Client.from_service_account_json("bigquery-key.json")
+    # Clean and convert 'Market Price' to a numeric type
+    if 'Market Price' in df.columns:
+        # Remove the dollar signs and convert to float
+        df['Market Price'] = df['Market Price'].replace('[\$,]', '', regex=True).astype(float)
     
-    job_config = bigquery.LoadJobConfig(
-        schema=[
-            bigquery.SchemaField("Product Name", "STRING"),
-            bigquery.SchemaField("Printing", "STRING"),
-            bigquery.SchemaField("Condition", "STRING"),
-            bigquery.SchemaField("Rarity", "STRING"),
-            bigquery.SchemaField("Number", "STRING"),
-            bigquery.SchemaField("Market Price", "FLOAT64"),
-            bigquery.SchemaField("source", "STRING"),
-            bigquery.SchemaField("scrape_date", "DATE"),
-        ],
-        write_disposition="WRITE_APPEND",
-    )
+    # BigQuery setup
+    client = bigquery.Client.from_service_account_json("bigquery-key.json")
+    table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
 
+    # BigQuery job configuration
+    job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
+
+    # Upload to BigQuery
     print("Uploading to BigQuery...")
-    job = client.load_table_from_dataframe(df, TABLE_ID, job_config=job_config)
+    job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
     job.result()  # Wait for the job to complete
-    print("Upload to BigQuery completed.")
+
+    print(f"Uploaded {len(df)} rows to {table_id}.")
 
 
 def read_urls(filename="sets.txt"):
