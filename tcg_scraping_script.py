@@ -67,7 +67,6 @@ def read_sets(file_path="sets.txt"):
         print(f"Error: The file {file_path} was not found.")
         return []
 
-# Scraping function with retry mechanism and semaphore for concurrency control
 async def scrape_single_table(url, browser, retries=3):
     page: Page | None = None  # Initialize `page` as None
     async with semaphore:
@@ -75,30 +74,42 @@ async def scrape_single_table(url, browser, retries=3):
             try:
                 print(f"Attempting to scrape {url} (Attempt {attempt + 1})")
                 page = await browser.new_page()
-                await page.goto(url, timeout=120000)  # Increased timeout to 120 seconds
-                await page.wait_for_selector("table", timeout=120000)  # 120 seconds timeout
-                rows = await page.query_selector_all("table tr")
                 
-                if rows:
-                    table_data = []
-                    target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
-                    headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
+                # Attempt to load the URL and confirm navigation
+                response = await page.goto(url, timeout=120000)
+                if not response or not response.ok:
+                    print(f"Failed to load {url}. Status: {response.status if response else 'No response'}")
+                    continue  # Retry if the page did not load correctly
+                
+                # Check if the table selector exists
+                print(f"Page loaded successfully for {url}. Checking for table selector...")
+                await page.wait_for_selector("table", timeout=120000)  # Increased timeout to 120 seconds
 
-                    indices = [headers.index(col) for col in target_columns if col in headers]
-                    for row in rows[1:]:
-                        cells = await row.query_selector_all("td")
-                        row_data = [await cells[i].inner_text() for i in indices]
-                        table_data.append(row_data)
-                    
-                    df = pd.DataFrame(table_data, columns=target_columns)
-                    df["source"] = url.split('/')[-1]  # Use suffix for the source column
-                    df["scrape_date"] = datetime.now().date()
-                    print(f"Data scraped successfully from {url} - {len(df)} rows")
-                    return df
+                # Retrieve table rows
+                rows = await page.query_selector_all("table tr")
+                if not rows:
+                    print(f"No rows found in the table for {url}")
+                    return pd.DataFrame()  # Return empty DataFrame if no rows are found
+                
+                # Extract table headers and data
+                print(f"Rows found in table for {url}: {len(rows)}")
+                table_data = []
+                target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
+                headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
+                print(f"Table headers for {url}: {headers}")
 
-                else:
-                    print(f"No rows loaded for {url}.")
-                    return pd.DataFrame()
+                indices = [headers.index(col) for col in target_columns if col in headers]
+                for row in rows[1:]:
+                    cells = await row.query_selector_all("td")
+                    row_data = [await cells[i].inner_text() for i in indices if i < len(cells)]
+                    table_data.append(row_data)
+                
+                # Create DataFrame and add metadata columns
+                df = pd.DataFrame(table_data, columns=[headers[i] for i in indices])
+                df["source"] = url.split('/')[-1]  # Use suffix for the source column
+                df["scrape_date"] = datetime.now().date()
+                print(f"Data scraped successfully from {url} - {len(df)} rows")
+                return df
 
             except Exception as e:
                 print(f"Attempt {attempt + 1} failed for {url}: {e}")
