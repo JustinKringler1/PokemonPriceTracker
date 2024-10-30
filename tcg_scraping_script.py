@@ -75,25 +75,21 @@ async def scrape_single_table(url, browser, retries=3):
                 print(f"Attempting to scrape {url} (Attempt {attempt + 1})")
                 page = await browser.new_page()
                 
-                # Load the URL
-                response = await page.goto(url, timeout=120000)
-                if not response or not response.ok:
-                    print(f"Failed to load {url}. Status: {response.status if response else 'No response'}")
-                    continue
+                # Log network requests to troubleshoot
+                page.on("response", lambda response: print(f"Request to {response.url} with status {response.status}"))
 
-                # Delay to allow content to load fully
-                await asyncio.sleep(5)  # Wait for JavaScript content
+                # Load the URL and wait for network to be idle
+                response = await page.goto(url)
+                await page.wait_for_load_state("networkidle")
 
-                # Retry table selector with a loop
-                for _ in range(3):
-                    rows = await page.query_selector_all("table tr")
-                    if rows:
-                        print(f"Rows found in table for {url}: {len(rows)}")
-                        break
-                    await asyncio.sleep(3)  # Wait and retry if rows are not found
+                # Scroll down the page to potentially load dynamic content
+                await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
+                await asyncio.sleep(5)  # Give time for additional content to load
                 
+                # Retry table selector check
+                rows = await page.query_selector_all("table tr")
                 if not rows:
-                    print(f"No table found for {url}. Saving screenshot and HTML for inspection.")
+                    print(f"No table rows found for {url}. Saving screenshot and HTML for inspection.")
                     await page.screenshot(path=f"{url.split('/')[-1]}_screenshot.png")
                     html_content = await page.content()
                     with open(f"{url.split('/')[-1]}_content.html", "w") as file:
@@ -112,8 +108,9 @@ async def scrape_single_table(url, browser, retries=3):
                     row_data = [await cells[i].inner_text() for i in indices if i < len(cells)]
                     table_data.append(row_data)
 
+                # Create DataFrame and add metadata columns
                 df = pd.DataFrame(table_data, columns=[headers[i] for i in indices])
-                df["source"] = url.split('/')[-1]  # Use suffix for the source column
+                df["source"] = url.split('/')[-1]
                 df["scrape_date"] = datetime.now().date()
                 print(f"Data scraped successfully from {url} - {len(df)} rows")
                 return df
