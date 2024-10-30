@@ -93,7 +93,7 @@ async def scrape_single_table(url, browser, retries=3):
                     df = pd.DataFrame(table_data, columns=target_columns)
                     df["source"] = url.split('/')[-1]  # Use suffix for the source column
                     df["scrape_date"] = datetime.now().date()
-                    print(f"Data scraped successfully from {url}")
+                    print(f"Data scraped successfully from {url} - {len(df)} rows")
                     return df
 
                 else:
@@ -123,8 +123,14 @@ async def process_batches(urls, browser, table_id):
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Collect data from successful scrapes
-        data_to_upload = [df for df in results if isinstance(df, pd.DataFrame) and not df.empty]
-        
+        data_to_upload = []
+        for result in results:
+            if isinstance(result, pd.DataFrame) and not result.empty:
+                print(f"Adding {len(result)} rows to upload for batch {i // CONCURRENT_REQUESTS + 1}")
+                data_to_upload.append(result)
+            else:
+                print("Result is empty or errored")
+
         if data_to_upload:
             combined_data = pd.concat(data_to_upload, ignore_index=True)
             print("Total rows in combined_data before upload:", len(combined_data))
