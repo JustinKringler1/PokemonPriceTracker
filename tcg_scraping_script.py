@@ -4,7 +4,12 @@ from google.cloud import bigquery
 from playwright.async_api import async_playwright, Page
 import os
 import asyncio
+import logging
 from datetime import datetime
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Base URL for TCGPlayer
 BASE_URL = "https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides/"
@@ -30,7 +35,19 @@ bq_client = bigquery.Client(credentials=credentials, project=os.getenv("BIGQUERY
 CONCURRENT_REQUESTS = 5
 BATCH_SIZE = 1000
 
-# Function to delete existing data for the current day
+# Read URL suffixes from sets.txt file and construct full URLs
+def read_sets(file_path="sets.txt"):
+    try:
+        with open(file_path, "r") as f:
+            urls = [BASE_URL + line.strip() for line in f if line.strip()]
+            logger.debug(f"Total URLs loaded from {file_path}: {len(urls)}")
+            logger.debug(f"Sample URLs: {urls[:5]}")
+        return urls
+    except FileNotFoundError:
+        logger.error(f"Error: The file {file_path} was not found.")
+        return []
+
+# Delete existing data for the current day in BigQuery
 def delete_existing_data(table_id, date_column="scrape_date"):
     today = datetime.now().date()
     query = f"""
@@ -38,45 +55,39 @@ def delete_existing_data(table_id, date_column="scrape_date"):
         WHERE DATE({date_column}) = "{today}"
     """
     query_job = bq_client.query(query)
-    query_job.result()  # Waits for the job to complete
-    print(f"Deleted existing data for {today} in table {table_id}")
+    try:
+        query_job.result()  # Wait for job completion
+        logger.debug(f"Deleted existing data for {today} in table {table_id}")
+    except Exception as e:
+        logger.error(f"Failed to delete existing data in table {table_id}: {e}")
 
 # Function to upload data to BigQuery in batches with error handling
 def upload_to_bigquery(df, table_id):
     for start in range(0, len(df), BATCH_SIZE):
         batch = df.iloc[start:start + BATCH_SIZE]
-        print(f"Uploading batch {start} to {start + BATCH_SIZE}")
+        logger.debug(f"Uploading batch {start} to {start + BATCH_SIZE}")
         try:
             batch.to_gbq(
-                table_id, 
-                project_id=os.getenv("BIGQUERY_PROJECT_ID"), 
-                if_exists="append", 
+                table_id,
+                project_id=os.getenv("BIGQUERY_PROJECT_ID"),
+                if_exists="append",
                 credentials=credentials
             )
-            print(f"Batch {start} to {start + BATCH_SIZE} uploaded successfully.")
+            logger.debug(f"Batch {start} to {start + BATCH_SIZE} uploaded successfully.")
         except Exception as e:
-            print(f"Error uploading batch {start} to {start + BATCH_SIZE}:", e)
+            logger.error(f"Error uploading batch {start} to {start + BATCH_SIZE}: {e}")
 
-# Read URL suffixes from sets.txt file and construct full URLs
-def read_sets(file_path="sets.txt"):
-    try:
-        with open(file_path, "r") as f:
-            urls = [BASE_URL + line.strip() for line in f if line.strip()]
-        return urls
-    except FileNotFoundError:
-        print(f"Error: The file {file_path} was not found.")
-        return []
-
+# Scraping function with retry mechanism and semaphore for concurrency control
 async def scrape_single_table(url, browser, retries=3):
     page: Page | None = None  # Initialize `page` as None
     async with semaphore:
         for attempt in range(retries):
             try:
-                print(f"Attempting to scrape {url} (Attempt {attempt + 1})")
+                logger.debug(f"Attempting to scrape {url} (Attempt {attempt + 1})")
                 page = await browser.new_page()
-                
+
                 # Log network requests to troubleshoot
-                page.on("response", lambda response: print(f"Request to {response.url} with status {response.status}"))
+                page.on("response", lambda response: logger.debug(f"Request to {response.url} with status {response.status}"))
 
                 # Load the URL and wait for network to be idle
                 response = await page.goto(url)
@@ -85,11 +96,11 @@ async def scrape_single_table(url, browser, retries=3):
                 # Scroll down the page to potentially load dynamic content
                 await page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
                 await asyncio.sleep(5)  # Give time for additional content to load
-                
+
                 # Retry table selector check
                 rows = await page.query_selector_all("table tr")
                 if not rows:
-                    print(f"No table rows found for {url}. Saving screenshot and HTML for inspection.")
+                    logger.warning(f"No table rows found for {url}. Saving screenshot and HTML for inspection.")
                     await page.screenshot(path=f"{url.split('/')[-1]}_screenshot.png")
                     html_content = await page.content()
                     with open(f"{url.split('/')[-1]}_content.html", "w") as file:
@@ -100,7 +111,7 @@ async def scrape_single_table(url, browser, retries=3):
                 table_data = []
                 target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
                 headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
-                print(f"Table headers for {url}: {headers}")
+                logger.debug(f"Table headers for {url}: {headers}")
 
                 indices = [headers.index(col) for col in target_columns if col in headers]
                 for row in rows[1:]:
@@ -112,26 +123,26 @@ async def scrape_single_table(url, browser, retries=3):
                 df = pd.DataFrame(table_data, columns=[headers[i] for i in indices])
                 df["source"] = url.split('/')[-1]
                 df["scrape_date"] = datetime.now().date()
-                print(f"Data scraped successfully from {url} - {len(df)} rows")
+                logger.debug(f"Data scraped successfully from {url} - {len(df)} rows")
                 return df
 
             except Exception as e:
-                print(f"Attempt {attempt + 1} failed for {url}: {e}")
+                logger.error(f"Attempt {attempt + 1} failed for {url}: {e}")
                 if attempt < retries - 1:
-                    print("Retrying...")
+                    logger.debug("Retrying...")
 
             finally:
                 if page:
                     await page.close()
 
-        print(f"Failed to scrape {url} after {retries} attempts.")
+        logger.warning(f"Failed to scrape {url} after {retries} attempts.")
         return pd.DataFrame()
 
 # Sequentially process each batch of URLs
 async def process_batches(urls, browser, table_id):
     for i in range(0, len(urls), CONCURRENT_REQUESTS):
         batch_urls = urls[i:i + CONCURRENT_REQUESTS]
-        print(f"Processing batch {i // CONCURRENT_REQUESTS + 1} of URLs")
+        logger.debug(f"Processing batch {i // CONCURRENT_REQUESTS + 1} of URLs")
         
         # Gather the batch results
         tasks = [scrape_single_table(url, browser) for url in batch_urls]
@@ -141,25 +152,23 @@ async def process_batches(urls, browser, table_id):
         data_to_upload = []
         for result in results:
             if isinstance(result, pd.DataFrame) and not result.empty:
-                print(f"Adding {len(result)} rows to upload for batch {i // CONCURRENT_REQUESTS + 1}")
+                logger.debug(f"Adding {len(result)} rows to upload for batch {i // CONCURRENT_REQUESTS + 1}")
                 data_to_upload.append(result)
             else:
-                print("Result is empty or errored")
+                logger.warning("Result is empty or errored")
 
         if data_to_upload:
             combined_data = pd.concat(data_to_upload, ignore_index=True)
-            print("Total rows in combined_data before upload:", len(combined_data))
-            print("Preview of combined_data:", combined_data.head(10))
+            logger.debug("Total rows in combined_data before upload: " + str(len(combined_data)))
             upload_to_bigquery(combined_data, table_id)
         else:
-            print(f"No data to upload for batch {i // CONCURRENT_REQUESTS + 1}")
+            logger.warning(f"No data to upload for batch {i // CONCURRENT_REQUESTS + 1}")
 
 # Main function for scraping and uploading data
 async def scrape_and_store_data(table_id):
-    # Load URLs from the sets.txt file
     urls = read_sets("sets.txt")
     if not urls:
-        print("No URLs found in sets.txt.")
+        logger.error("No URLs found in sets.txt.")
         return
 
     async with async_playwright() as p:
@@ -169,7 +178,7 @@ async def scrape_and_store_data(table_id):
 
 # Main entry point
 def main():
-    table_id = "pokemon_data.pokemon_prices"  # BigQuery dataset.table name
+    table_id = "pokemon_data.pokemon_prices"
     delete_existing_data(table_id)  # Delete only once before scraping begins
     asyncio.run(scrape_and_store_data(table_id))
 
