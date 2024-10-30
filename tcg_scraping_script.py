@@ -88,29 +88,29 @@ async def scrape_and_store_data(urls):
 
 # Ensure upload_to_bigquery performs data cleanup
 def upload_to_bigquery(df):
-    # Remove dollar signs and convert 'Market Price' to numeric
+    # Clean and convert 'Market Price' to a numeric format without symbols
     if 'Market Price' in df.columns:
         df['Market Price'] = pd.to_numeric(df['Market Price'].replace('[\$,]', '', regex=True), errors='coerce')
     
-    # Ensure 'scrape_date' is in date format without time for BigQuery DATE type
+    # Convert 'scrape_date' to a datetime object and format it as a date string
     df['scrape_date'] = pd.to_datetime(df['scrape_date'], errors='coerce').dt.strftime('%Y-%m-%d')
-
-    # Convert all object columns to UTF-8 encoded strings to prevent byte issues
+    
+    # Convert all object columns to UTF-8 encoded strings
     for col in df.select_dtypes(include=['object']).columns:
         df[col] = df[col].astype(str).apply(lambda x: x.encode('utf-8', 'ignore').decode('utf-8') if isinstance(x, str) else x)
 
-    # Initialize BigQuery client and define table ID
+    # Initialize BigQuery client
     client = bigquery.Client.from_service_account_json("bigquery-key.json")
     table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
 
-    # Define schema and load job configuration
+    # Define the schema and job configuration for BigQuery
     job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
 
     # Debugging info
     print("Data types before upload:", df.dtypes)
-    print(df.head())  # Print sample rows to inspect data
+    print(df.head())  # Print sample rows for inspection
 
-    # Upload to BigQuery
+    # Attempt to upload data to BigQuery
     print("Uploading to BigQuery...")
     job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
     job.result()  # Wait for the job to complete
