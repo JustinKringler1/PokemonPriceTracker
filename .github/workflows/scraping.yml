@@ -26,21 +26,13 @@ jobs:
 
     - name: Set up BigQuery Authentication
       env:
-        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
+        BIGQUERY_CREDENTIALS_JSON: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
       run: |
         echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
         export GOOGLE_APPLICATION_CREDENTIALS=bigquery-key.json
-
-    - name: Enable Debug Logging
-      run: echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
 
     - name: Run Scraping Script
       run: |
         python tcg_scraping_script.py
       env:
         BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
-        BIGQUERY_CLIENT_EMAIL: ${{ secrets.BIGQUERY_CLIENT_EMAIL }}
-        BIGQUERY_PRIVATE_KEY_ID: ${{ secrets.BIGQUERY_PRIVATE_KEY_ID }}
-        BIGQUERY_PRIVATE_KEY: ${{ secrets.BIGQUERY_PRIVATE_KEY }}
-        BIGQUERY_CLIENT_ID: ${{ secrets.BIGQUERY_CLIENT_ID }}
-        BIGQUERY_CLIENT_CERT_URL: ${{ secrets.BIGQUERY_CLIENT_CERT_URL }}
