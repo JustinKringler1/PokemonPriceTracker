@@ -6,6 +6,9 @@ import os
 import asyncio
 from datetime import datetime
 
+# Base URL for TCGPlayer
+BASE_URL = "https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides/"
+
 # Set up Google Cloud BigQuery credentials
 credentials = service_account.Credentials.from_service_account_info({
     "type": "service_account",
@@ -48,11 +51,12 @@ def upload_to_bigquery(df, table_id):
     )
     print(f"Data uploaded to BigQuery table {table_id}")
 
-# Read URLs from text file
-def read_urls(file_path="urls.txt"):
+# Read URL suffixes from text file and construct full URLs
+def read_urls(file_path="sets.txt"):
     try:
         with open(file_path, "r") as f:
-            urls = [line.strip() for line in f if line.strip()]
+            # Construct full URLs by appending each suffix to the BASE_URL
+            urls = [BASE_URL + line.strip() for line in f if line.strip()]
         return urls
     except FileNotFoundError:
         print(f"Error: The file {file_path} was not found.")
@@ -80,7 +84,7 @@ async def scrape_single_table(url, browser, retries=3):
                         table_data.append(row_data)
                     
                     df = pd.DataFrame(table_data, columns=target_columns)
-                    df["source"] = url.split('/')[-1]
+                    df["source"] = url.split('/')[-1]  # Use suffix for the source column
                     df["scrape_date"] = datetime.now().date()
                     print(f"Data scraped successfully from {url}")
                     return df
@@ -105,9 +109,9 @@ async def scrape_and_store_data(table_id):
     delete_existing_data(table_id)
 
     # Load URLs from the text file
-    urls = read_urls("urls.txt")
+    urls = read_urls("sets.txt")
     if not urls:
-        print("No URLs found in urls.txt.")
+        print("No URLs found in sets.txt.")
         return
           
     async with async_playwright() as p:
