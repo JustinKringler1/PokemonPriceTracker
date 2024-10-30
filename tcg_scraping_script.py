@@ -5,7 +5,7 @@ from playwright.async_api import async_playwright
 from google.cloud import bigquery
 
 # Constants
-TABLE_ID = "your_project.your_dataset.your_table"
+TABLE_ID = "pokemon_data.pokemon_prices"
 DATE_FORMAT = "%Y-%m-%d"
 
 def get_urls_from_file(filename="sets.txt"):
