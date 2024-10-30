@@ -45,6 +45,10 @@ jobs:
         BIGQUERY_CLIENT_ID: ${{ secrets.BIGQUERY_CLIENT_ID }}
         BIGQUERY_CLIENT_CERT_URL: ${{ secrets.BIGQUERY_CLIENT_CERT_URL }}
 
+    # List files in the artifacts directory before uploading
+    - name: List artifacts
+      run: ls -l artifacts/ || echo "No artifacts found."
+
     # Upload debug artifacts for diagnostics regardless of success or failure
     - name: Upload debug artifacts
       if: always()  # Uploads regardless of success or failure
