@@ -88,29 +88,39 @@ async def scrape_and_store_data(urls):
 
 # Ensure upload_to_bigquery performs data cleanup
 def upload_to_bigquery(df):
-    # Clean and convert 'Market Price' to a numeric format without symbols
+    # Convert 'Market Price' to a numeric format (float)
     if 'Market Price' in df.columns:
         df['Market Price'] = pd.to_numeric(df['Market Price'].replace('[\$,]', '', regex=True), errors='coerce')
     
-    # Convert 'scrape_date' to a datetime object and format it as a date string
-    df['scrape_date'] = pd.to_datetime(df['scrape_date'], errors='coerce').dt.strftime('%Y-%m-%d')
-    
-    # Convert all object columns to UTF-8 encoded strings
-    for col in df.select_dtypes(include=['object']).columns:
-        df[col] = df[col].astype(str).apply(lambda x: x.encode('utf-8', 'ignore').decode('utf-8') if isinstance(x, str) else x)
+    # Convert 'scrape_date' to datetime for compatibility with BigQuery's DATE type
+    df['scrape_date'] = pd.to_datetime(df['scrape_date'], errors='coerce')
+
+    # Explicitly enforce schema by casting each column to its correct type
+    df = df.astype({
+        'Product Name': 'string',
+        'Printing': 'string',
+        'Condition': 'string',
+        'Rarity': 'string',
+        'Number': 'string',
+        'Market Price': 'float64',
+        'source': 'string',
+        'scrape_date': 'datetime64[ns]'  # Ensures compatibility with BigQuery DATE type
+    })
 
     # Initialize BigQuery client
     client = bigquery.Client.from_service_account_json("bigquery-key.json")
     table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
 
-    # Define the schema and job configuration for BigQuery
-    job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
+    # Define job configuration for BigQuery
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=bigquery.WriteDisposition.WRITE_APPEND
+    )
 
     # Debugging info
     print("Data types before upload:", df.dtypes)
     print(df.head())  # Print sample rows for inspection
 
-    # Attempt to upload data to BigQuery
+    # Upload data to BigQuery
     print("Uploading to BigQuery...")
     job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
     job.result()  # Wait for the job to complete
