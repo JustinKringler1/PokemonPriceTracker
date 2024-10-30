@@ -88,43 +88,44 @@ async def scrape_and_store_data(urls):
 
 # Ensure upload_to_bigquery performs data cleanup
 def upload_to_bigquery(df):
-    # Convert 'Market Price' to a numeric format (float)
-    if 'Market Price' in df.columns:
-        df['Market Price'] = pd.to_numeric(df['Market Price'].replace('[\$,]', '', regex=True), errors='coerce')
-    
+    # Keep 'Market Price' as a string type
+    df['Market Price'] = df['Market Price'].astype(str)
+
     # Convert 'scrape_date' to datetime for compatibility with BigQuery's DATE type
     df['scrape_date'] = pd.to_datetime(df['scrape_date'], errors='coerce')
 
-    # Explicitly enforce schema by casting each column to its correct type
+    # Drop rows where 'scrape_date' is NaT after conversion, as it is required
+    df = df.dropna(subset=['scrape_date'])
+
+    # Enforce schema types explicitly
     df = df.astype({
         'Product Name': 'string',
         'Printing': 'string',
         'Condition': 'string',
         'Rarity': 'string',
         'Number': 'string',
-        'Market Price': 'float64',
+        'Market Price': 'string',  # Keep as string
         'source': 'string',
-        'scrape_date': 'datetime64[ns]'  # Ensures compatibility with BigQuery DATE type
+        'scrape_date': 'datetime64[ns]'
     })
+
+    # Log DataFrame info to check types and non-null counts
+    print(df.info())
+    print(df.head())  # Show first few rows
 
     # Initialize BigQuery client
     client = bigquery.Client.from_service_account_json("bigquery-key.json")
     table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
 
-    # Define job configuration for BigQuery
-    job_config = bigquery.LoadJobConfig(
-        write_disposition=bigquery.WriteDisposition.WRITE_APPEND
-    )
-
-    # Debugging info
-    print("Data types before upload:", df.dtypes)
-    print(df.head())  # Print sample rows for inspection
+    # Define job configuration
+    job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
 
     # Upload data to BigQuery
     print("Uploading to BigQuery...")
     job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
     job.result()  # Wait for the job to complete
     print(f"Uploaded {len(df)} rows to {table_id}.")
+
 
 
 def read_urls(filename="sets.txt"):
