@@ -4,11 +4,20 @@ import asyncio
 from datetime import datetime
 from playwright.async_api import async_playwright
 from google.cloud import bigquery
+from google.oauth2 import service_account
+import json
 
 # Constants for BigQuery
 PROJECT_ID = os.getenv("BIGQUERY_PROJECT_ID")
 DATASET_ID = "pokemon_data"
 TABLE_ID = f"{PROJECT_ID}.{DATASET_ID}.pokemon_prices"
+
+def get_bigquery_client():
+    # Load credentials from an environment variable (for GitHub Actions or similar)
+    credentials_dict = json.loads(os.getenv("BIGQUERY_CREDENTIALS"))
+    credentials = service_account.Credentials.from_service_account_info(credentials_dict)
+    return bigquery.Client(credentials=credentials, project=credentials.project_id)
+
 
 async def scrape_single_table(url, browser, retries=3):
     for attempt in range(retries):
@@ -69,7 +78,7 @@ async def scrape_single_table(url, browser, retries=3):
     return pd.DataFrame()  # Return empty if incomplete after retries
 
 def delete_today_data():
-    client = bigquery.Client.from_service_account_json("bigquery-key.json")
+    client = get_bigquery_client()
     table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
     
     # Construct the query to delete rows with today's date
@@ -120,7 +129,7 @@ def upload_to_bigquery(df):
         'scrape_date': 'datetime64[ns]'
     })
 
-    client = bigquery.Client.from_service_account_json("bigquery-key.json")
+    client = get_bigquery_client()
     table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
     job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
     print("Uploading to BigQuery...")
