@@ -94,8 +94,6 @@ def delete_today_data():
     print(f"Data with today's date ({today_date}) has been deleted from BigQuery.")
 
 async def scrape_and_store_data(urls):
-    delete_today_data()  # Delete data for today before starting the scrape
-
     all_data = []
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
