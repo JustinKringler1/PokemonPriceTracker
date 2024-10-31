@@ -21,15 +21,29 @@ jobs:
         pip install pandas google-cloud-bigquery playwright
         python -m playwright install
 
-
-    - name: Install Playwright Browsers
-      run: |
-        python -m playwright install
-
-    - name: Run scraping script for Batch 1
+    - name: Delete today's data from BigQuery (if applicable)
+      if: env.DELETE_TODAY == 'true'  # Only run if DELETE_TODAY is set to true
       env:
         BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
         GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json
       run: |
         echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
-        python tcg_scraping_script.py --urls-file "sets_1.txt" --delete-today
+        python -c "
+import os
+from datetime import datetime
+from google.cloud import bigquery
+
+client = bigquery.Client()
+table_id = f'{os.getenv("BIGQUERY_PROJECT_ID")}.pokemon_data.pokemon_prices'
+today_date = datetime.now().date().isoformat()
+delete_query = f'DELETE FROM `{table_id}` WHERE scrape_date = \"{today_date}\"'
+client.query(delete_query).result()
+print(f'Data with date {today_date} deleted from BigQuery.')"
+
+    - name: Run scraping script for Batch 1
+      env:
+        BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
+        GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json
+        DELETE_TODAY: "true"  # Define DELETE_TODAY for this batch only
+      run: |
+        python tcg_scraping_script.py --urls-file "sets_1.txt"
