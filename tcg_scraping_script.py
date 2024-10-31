@@ -128,15 +128,22 @@ def upload_to_bigquery(df):
     job.result()
     print(f"Uploaded {len(df)} rows to {table_id}.")
 
-def read_urls(filename="sets.txt"):
+import argparse
+
+def read_urls(filename):
     with open(filename, "r") as f:
         base_url = "https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides/"
         urls = [base_url + line.strip() for line in f.readlines()]
     print(f"Loaded {len(urls)} URLs from {filename}")
     return urls
 
+
 def main():
-    urls = read_urls("sets.txt")
+    parser = argparse.ArgumentParser(description="Run TCG scraping script with specific URL subset.")
+    parser.add_argument("--urls-file", type=str, required=True, help="The file containing URLs to scrape")
+    args = parser.parse_args()
+
+    urls = read_urls(args.urls_file)
     asyncio.run(scrape_and_store_data(urls))
 
 if __name__ == "__main__":
