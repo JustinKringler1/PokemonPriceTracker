@@ -1,9 +1,9 @@
 name: Scrape Pokémon Card Data
 
 on:
-  workflow_dispatch:  # Adds a button for manual runs in the Actions tab
   schedule:
     - cron: '0 * * * *'  # Adjust as needed
+  workflow_dispatch:      # Allows manual triggering
 
 jobs:
   scrape_data:
@@ -34,7 +34,7 @@ jobs:
         run: python scrape_counts.py
 
       - name: Upload Results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3  # Updated to v3
         with:
           name: row_counts
           path: row_counts.csv
