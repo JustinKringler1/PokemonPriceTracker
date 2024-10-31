@@ -9,12 +9,11 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
 
-    # Define a matrix to run each subset file in parallel
     strategy:
+      fail-fast: false            # Allow other jobs to continue even if one fails
+      max-parallel: 4             # Adjust parallelism according to GitHub free limits
       matrix:
         subset_file: [sets_1.txt, sets_2.txt, sets_3.txt, sets_4.txt]  # Add all subset files here
-        fail-fast: false            # Allow other jobs to continue even if one fails
-        max-parallel: 4             # Adjust parallelism according to GitHub free limits
 
     steps:
     - name: Checkout code
