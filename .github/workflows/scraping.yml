@@ -1,38 +1,39 @@
-name: Scrape and Store Data
+name: Scrape URLs in Batches
 
 on:
-  schedule:
-    - cron: '0 0 * * *'  # Runs daily at midnight
   workflow_dispatch:
+  schedule:
+    - cron: '0 1 * * *'  # Runs every day at 1 AM UTC (optional)
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
 
+    # Define a matrix to run each subset file in parallel
+    strategy:
+      matrix:
+        subset_file: [sets_1.txt, sets_2.txt, sets_3.txt, sets_4.txt]  # Add all subset files here
+        fail-fast: false            # Allow other jobs to continue even if one fails
+        max-parallel: 4             # Adjust parallelism according to GitHub free limits
+
     steps:
-    - name: Check out repository
-      uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v2
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v2
       with:
         python-version: '3.8'
 
-    - name: Install Dependencies
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install google-cloud-bigquery pandas pandas-gbq playwright
-        playwright install
+        pip install -r requirements.txt
 
-    - name: Set up BigQuery Authentication
-      env:
-        BIGQUERY_CREDENTIALS_JSON: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
-      run: |
-        echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
-        export GOOGLE_APPLICATION_CREDENTIALS=bigquery-key.json
-
-    - name: Run Scraping Script
-      run: |
-        python tcg_scraping_script.py
+    - name: Run scraping script
       env:
         BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
+        GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json  # If using service account credentials
+      run: |
+        # Run the scraping script for this subset
+        python tcg_scraping_script.py --urls-file "${{ matrix.subset_file }}"
