@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: false            # Allow other jobs to continue even if one fails
-      max-parallel: 4             # Adjust parallelism according to GitHub free limits
+      fail-fast: false
+      max-parallel: 4
       matrix:
-        subset_file: [sets_1.txt, sets_2.txt, sets_3.txt, sets_4.txt]  # Add all subset files here
+        subset_file: [sets_1.txt, sets_2.txt, sets_3.txt, sets_4.txt]
 
     steps:
     - name: Checkout code
@@ -29,10 +29,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install pandas google-cloud-bigquery playwright
 
+    # Write the credentials to a JSON file from the secret
+    - name: Set up BigQuery credentials
+      env:
+        BIGQUERY_CREDENTIALS: ${{ secrets.BIGQUERY_CREDENTIALS }}
+      run: |
+        echo "$BIGQUERY_CREDENTIALS" > bigquery-key.json
+
     - name: Run scraping script
       env:
         BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
-        BIGQUERY_CREDENTIALS: ${{ secrets.BIGQUERY_CREDENTIALS }}
+        GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json
       run: |
-        # Run the scraping script for this subset
         python tcg_scraping_script.py --urls-file "${{ matrix.subset_file }}"
