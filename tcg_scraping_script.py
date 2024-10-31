@@ -4,155 +4,105 @@ import asyncio
 from datetime import datetime
 from playwright.async_api import async_playwright
 from google.cloud import bigquery
-from google.oauth2 import service_account
-import json
 
 # Constants for BigQuery
 PROJECT_ID = os.getenv("BIGQUERY_PROJECT_ID")
 DATASET_ID = "pokemon_data"
 TABLE_ID = f"{PROJECT_ID}.{DATASET_ID}.pokemon_prices"
+RETRY_LIMIT = 3  # Number of retries for each URL if row count does not match
 
-from google.cloud import bigquery
+# Load set dictionary
+set_dict = pd.read_csv("set_dictionary.csv").set_index("set").to_dict()["cards"]
 
-def get_bigquery_client():
-    # Uses GOOGLE_APPLICATION_CREDENTIALS path set in the workflow
-    return bigquery.Client()
-
-
-
-async def scrape_single_table(url, browser, retries=3):
-    for attempt in range(retries):
-        page = await browser.new_page()
+async def scrape_single_table(url, browser, expected_rows):
+    retries = 0
+    page = await browser.new_page()
+    
+    while retries < RETRY_LIMIT:
         try:
-            # Load the URL and wait for it to be ready
+            # Load the page and wait for it to be ready
             await page.goto(url, timeout=180000)
             await page.wait_for_load_state("networkidle")
             await page.wait_for_selector("table", timeout=180000)
 
-            # Verify that all rows have loaded by checking row count stability
-            previous_row_count = 0
-            stable_checks = 0
-            max_stable_checks = 3  # Number of consecutive checks to confirm stability
-            while stable_checks < max_stable_checks:
-                rows = await page.query_selector_all("table tr")
-                current_row_count = len(rows)
-                if current_row_count == previous_row_count:
-                    stable_checks += 1
-                else:
-                    stable_checks = 0  # Reset stability check if row count changes
-                previous_row_count = current_row_count
-                await asyncio.sleep(2)  # Wait a bit before the next check
+            # Extract rows
+            rows = await page.query_selector_all("table tr")
+            current_row_count = len(rows)
 
-            if current_row_count == 0:
-                print(f"No rows found in table for {url} on attempt {attempt + 1}. Retrying...")
+            if current_row_count >= expected_rows:
+                # Scrape if the row count matches or exceeds expectations
+                table_data = []
+                headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
+                target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
+                indices = [headers.index(col) for col in target_columns if col in headers]
+                
+                for row in rows[1:]:
+                    cells = await row.query_selector_all("td")
+                    row_data = [await cells[i].inner_text() for i in indices if i < len(cells)]
+                    table_data.append(row_data)
+
+                # Create DataFrame and add metadata
+                df = pd.DataFrame(table_data, columns=[headers[i] for i in indices])
+                df["source"] = url.split('/')[-1]
+                df["scrape_date"] = datetime.now().date()
+                print(f"Data scraped successfully from {url} - {len(df)} rows")
                 await page.close()
-                continue
-
-            # Extract headers and data
-            table_data = []
-            target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
-            headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
-            print(f"Table headers for {url}: {headers}")
-
-            indices = [headers.index(col) for col in target_columns if col in headers]
-            for row in rows[1:]:
-                cells = await row.query_selector_all("td")
-                row_data = [await cells[i].inner_text() for i in indices if i < len(cells)]
-                table_data.append(row_data)
-
-            # Create DataFrame and add metadata
-            df = pd.DataFrame(table_data, columns=[headers[i] for i in indices])
-            df["source"] = url.split('/')[-1]
-            df["scrape_date"] = datetime.now().date()
-
-            print(f"Data scraped successfully from {url} - {len(df)} rows")
-            await page.close()
-            return df
-
+                return df
+            else:
+                print(f"Row count {current_row_count} less than expected {expected_rows}. Retrying ({retries+1}/{RETRY_LIMIT})...")
+                retries += 1
+                await asyncio.sleep(5)  # Wait before retrying
+                await page.reload()
         except Exception as e:
-            print(f"Failed to scrape {url} on attempt {attempt + 1} due to error: {e}")
-            await page.close()
+            print(f"Failed attempt {retries + 1} for {url}: {e}")
+            retries += 1
+            await page.reload()
 
-        await asyncio.sleep(5)  # Wait before retrying
-
-    print(f"Failed to scrape complete data from {url} after {retries} attempts.")
-    return pd.DataFrame()  # Return empty if incomplete after retries
+    print(f"Failed to scrape complete data from {url} after {RETRY_LIMIT} attempts.")
+    await page.close()
+    return pd.DataFrame()  # Return empty DataFrame if unsuccessful
 
 def delete_today_data():
-    client = get_bigquery_client()
-    table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
-    
-    # Construct the query to delete rows with today's date
+    client = bigquery.Client()
+    table_id = f"{PROJECT_ID}.{DATASET_ID}.pokemon_prices"
     today_date = datetime.now().date().isoformat()
-    delete_query = f"""
-        DELETE FROM `{table_id}`
-        WHERE scrape_date = '{today_date}'
-    """
-    print(f"Deleting data from BigQuery with today's date ({today_date})...")
-    query_job = client.query(delete_query)
-    query_job.result()  # Wait for the delete job to complete
-    print(f"Data with today's date ({today_date}) has been deleted from BigQuery.")
+    delete_query = f"DELETE FROM `{table_id}` WHERE scrape_date = '{today_date}'"
+    print(f"Deleting today's data ({today_date}) from BigQuery...")
+    client.query(delete_query).result()
+    print("Data deletion complete.")
 
-async def scrape_and_store_data(urls):
-    all_data = []
+async def scrape_and_store_data():
+    delete_today_data()  # Delete data with today's date before starting
+
+    # Set up Playwright browser
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-
-        for url in urls:
-            print(f"Scraping {url}...")
-            df = await scrape_single_table(url, browser)
+        all_data = []
+        
+        for set_name, expected_rows in set_dict.items():
+            url = f"https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides/{set_name}"
+            print(f"Scraping {url} with expected rows: {expected_rows}")
+            df = await scrape_single_table(url, browser, expected_rows)
             if not df.empty:
                 all_data.append(df)
 
         await browser.close()
 
-    # Concatenate all DataFrames after all URLs have been scraped
+    # Combine and upload all data
     if all_data:
         combined_data = pd.concat(all_data, ignore_index=True)
         print(f"Total rows scraped across all tables: {len(combined_data)}")
         upload_to_bigquery(combined_data)
 
 def upload_to_bigquery(df):
-    df['Market Price'] = df['Market Price'].astype(str)
-    df['scrape_date'] = pd.to_datetime(df['scrape_date'], errors='coerce')
-    df = df.dropna(subset=['scrape_date'])
-
-    df = df.astype({
-        'Product Name': 'string',
-        'Printing': 'string',
-        'Condition': 'string',
-        'Rarity': 'string',
-        'Number': 'string',
-        'Market Price': 'string',
-        'source': 'string',
-        'scrape_date': 'datetime64[ns]'
-    })
-
-    client = get_bigquery_client()
-    table_id = f"{os.getenv('BIGQUERY_PROJECT_ID')}.pokemon_data.pokemon_prices"
+    client = bigquery.Client()
+    table_id = f"{PROJECT_ID}.{DATASET_ID}.pokemon_prices"
     job_config = bigquery.LoadJobConfig(write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
+    df['Market Price'] = df['Market Price'].astype(str)
     print("Uploading to BigQuery...")
-    job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
-    job.result()
+    client.load_table_from_dataframe(df, table_id, job_config=job_config).result()
     print(f"Uploaded {len(df)} rows to {table_id}.")
 
-import argparse
-
-def read_urls(filename):
-    with open(filename, "r") as f:
-        base_url = "https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides/"
-        urls = [base_url + line.strip() for line in f.readlines()]
-    print(f"Loaded {len(urls)} URLs from {filename}")
-    return urls
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Run TCG scraping script with specific URL subset.")
-    parser.add_argument("--urls-file", type=str, required=True, help="The file containing URLs to scrape")
-    args = parser.parse_args()
-
-    urls = read_urls(args.urls_file)
-    asyncio.run(scrape_and_store_data(urls))
-
+# Main function
 if __name__ == "__main__":
-    main()
+    asyncio.run(scrape_and_store_data())
