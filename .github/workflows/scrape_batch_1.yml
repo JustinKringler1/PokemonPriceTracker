@@ -29,17 +29,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json
         run: |
           echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
-          python -c "
-import os
-from datetime import datetime
-from google.cloud import bigquery
-
-client = bigquery.Client()
-table_id = f'{os.getenv("BIGQUERY_PROJECT_ID")}.pokemon_data.pokemon_prices'
-today_date = datetime.now().date().isoformat()
-delete_query = f'DELETE FROM `{table_id}` WHERE scrape_date = \"{today_date}\"'
-client.query(delete_query).result()
-print(f'Data with date {today_date} deleted from BigQuery.')"
+          python delete_today_data.py  # Run the deletion script
 
       - name: Run scraping script for Batch 1
         env:
