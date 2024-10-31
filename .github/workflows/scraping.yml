@@ -32,7 +32,7 @@ jobs:
     - name: Run scraping script
       env:
         BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
-        GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json  # If using service account credentials
+        BIGQUERY_CREDENTIALS: ${{ secrets.BIGQUERY_CREDENTIALS }}
       run: |
         # Run the scraping script for this subset
         python tcg_scraping_script.py --urls-file "${{ matrix.subset_file }}"
