@@ -1,0 +1,39 @@
+name: Scrape Pokémon Card Data
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Adjust as needed
+
+jobs:
+  scrape_data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas selenium webdriver-manager
+
+      - name: Set up Chrome and ChromeDriver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+          sudo apt-get install -y chromium-chromedriver
+          sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/bin/chromedriver
+
+      - name: Run Scraping Script
+        run: python scrape_counts.py
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v2
+        with:
+          name: row_counts
+          path: row_counts.csv
