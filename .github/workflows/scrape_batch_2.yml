@@ -24,6 +24,10 @@ jobs:
         pip install pandas google-cloud-bigquery playwright
         python -m playwright install
 
+    - name: Install Playwright Browsers
+      run: |
+        python -m playwright install
+
     - name: Run scraping script for Batch 2
       env:
         BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
