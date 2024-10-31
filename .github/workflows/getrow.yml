@@ -1,6 +1,7 @@
 name: Scrape Pokémon Card Data
 
 on:
+  workflow_dispatch:  # Adds a button for manual runs in the Actions tab
   schedule:
     - cron: '0 * * * *'  # Adjust as needed
 
