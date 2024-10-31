@@ -29,13 +29,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install pandas google-cloud-bigquery playwright
 
+    - name: Install Playwright Browsers
+      run: |
+        python -m playwright install
+
     - name: Set up BigQuery credentials
       env:
         BIGQUERY_CREDENTIALS_JSON: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
       run: |
         echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
-        cat bigquery-key.json  # Output contents for verification
-        ls -l bigquery-key.json  # List file details to confirm creation
 
     - name: Run scraping script
       env:
