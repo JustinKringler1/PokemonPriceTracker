@@ -12,11 +12,12 @@ PROJECT_ID = os.getenv("BIGQUERY_PROJECT_ID")
 DATASET_ID = "pokemon_data"
 TABLE_ID = f"{PROJECT_ID}.{DATASET_ID}.pokemon_prices"
 
+from google.cloud import bigquery
+
 def get_bigquery_client():
-    # Load credentials from an environment variable (for GitHub Actions or similar)
-    credentials_dict = json.loads(os.getenv("BIGQUERY_CREDENTIALS"))
-    credentials = service_account.Credentials.from_service_account_info(credentials_dict)
-    return bigquery.Client(credentials=credentials, project=credentials.project_id)
+    # Uses GOOGLE_APPLICATION_CREDENTIALS path set in the workflow
+    return bigquery.Client()
+
 
 
 async def scrape_single_table(url, browser, retries=3):
