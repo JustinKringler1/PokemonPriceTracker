@@ -1,4 +1,4 @@
-    name: Scrape URLs in Batches
+name: Scrape URLs in Batches
 
 on:
   workflow_dispatch:
