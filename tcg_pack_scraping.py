@@ -32,10 +32,10 @@ async def scrape_sealed_products_table(url, browser, retries=3):
             # Click the "Sealed Products" tab using a text selector
             sealed_tab = await page.locator("text=Sealed Products")
             await sealed_tab.click()
-            await page.wait_for_selector(".table")
+            await page.wait_for_selector("table")
 
             # Check for table data structure
-            rows = await page.query_selector_all(".table tr")
+            rows = await page.query_selector_all("table tr")
             if len(rows) == 0:
                 print(f"No rows found in sealed products table for {url} on attempt {attempt + 1}. Retrying...")
                 await page.close()
