@@ -24,6 +24,7 @@ def delete_today_data():
 async def scrape_sealed_products_table(url, browser, retries=3):
     for attempt in range(retries):
         page = await browser.new_page()
+        table_data = []  # Initialize table data list outside the loop
         try:
             await page.goto(url, timeout=180000)
             await page.wait_for_load_state("networkidle")
@@ -45,14 +46,13 @@ async def scrape_sealed_products_table(url, browser, retries=3):
             # Check if table structure is correct with 5 columns
             if row_count > 0:
                 header_cells = await rows.nth(0).locator("td, th").all()
-                if len(header_cells) == 5:
-                    for row in rows:
-                        cells = await row.locator("td").all()
+                if len(header_cells) >= 5:  # Verify correct table structure
+                    for i in range(1, row_count):  # Skip the header row
+                        cells = await rows.nth(i).locator("td").all()
                         if len(cells) >= 5:  # Ensure there are at least 5 columns
                             product_name = await cells[1].inner_text()
                             market_price = await cells[2].inner_text()
                             table_data.append([product_name, market_price])
-         
 
                     # Create DataFrame
                     df = pd.DataFrame(table_data, columns=["Product Name", "Market Price"])
@@ -68,7 +68,7 @@ async def scrape_sealed_products_table(url, browser, retries=3):
                         print(f"No 'Booster Pack' entries found for {url}. Retrying...")
 
                 else:
-                    print(f"Table structure mismatch (expected 2 columns) for {url}. Retrying...")
+                    print(f"Table structure mismatch (expected 5 columns) for {url}. Retrying...")
 
         except Exception as e:
             print(f"Error on {url}, attempt {attempt + 1}: {e}")
@@ -78,6 +78,7 @@ async def scrape_sealed_products_table(url, browser, retries=3):
 
     print(f"Failed to scrape complete data from Sealed Products tab for {url} after {retries} attempts.")
     return pd.DataFrame()
+
 
 async def scrape_and_store_data():
     delete_today_data()
