@@ -37,33 +37,37 @@ async def scrape_sealed_products_table(url, browser, retries=3):
                     await page.wait_for_timeout(3000)  # Wait for the tab to load
                     break
             
-            # Locate the table with XPath
-            rows = await page.locator("xpath=//*[contains(concat(' ', @class, ' '), ' table ')]//tr").all()
-            print(f"Found {len(rows)} rows in the table for {url}")
+            # Locate the table with XPath and fetch rows
+            rows = page.locator("xpath=//*[contains(concat(' ', @class, ' '), ' table ')]//tr")
+            row_count = await rows.count()
+            print(f"Found {row_count} rows in the table for {url}")
 
             # Check if table structure is correct with 2 columns
-            if len(rows) > 0 and len(await rows[0].query_selector_all("td, th")) == 2:
-                table_data = []
-                for row in rows[1:]:  # Skip header row
-                    cells = await row.query_selector_all("td")
-                    row_data = [await cell.inner_text() for cell in cells]
-                    table_data.append(row_data)
+            if row_count > 0:
+                header_cells = await rows.nth(0).locator("td, th").all()
+                if len(header_cells) == 2:
+                    table_data = []
+                    for i in range(1, row_count):  # Skip header row
+                        row = rows.nth(i)
+                        cells = await row.locator("td").all_text_contents()
+                        if len(cells) == 2:
+                            table_data.append(cells)
 
-                # Create DataFrame
-                df = pd.DataFrame(table_data, columns=["Product Name", "Market Price"])
-                df = df[df["Product Name"].str.contains("Booster Pack", case=False, na=False)]
-                df["source"] = url.split('/')[-1]
-                df["scrape_date"] = datetime.now().date()
+                    # Create DataFrame
+                    df = pd.DataFrame(table_data, columns=["Product Name", "Market Price"])
+                    df = df[df["Product Name"].str.contains("Booster Pack", case=False, na=False)]
+                    df["source"] = url.split('/')[-1]
+                    df["scrape_date"] = datetime.now().date()
 
-                if not df.empty:
-                    print(f"Filtered data successfully for {url} - {len(df)} rows")
-                    await page.close()
-                    return df
+                    if not df.empty:
+                        print(f"Filtered data successfully for {url} - {len(df)} rows")
+                        await page.close()
+                        return df
+                    else:
+                        print(f"No 'Booster Pack' entries found for {url}. Retrying...")
+
                 else:
-                    print(f"No 'Booster Pack' entries found for {url}. Retrying...")
-
-            else:
-                print(f"Table structure mismatch (expected 2 columns) for {url}. Retrying...")
+                    print(f"Table structure mismatch (expected 2 columns) for {url}. Retrying...")
 
         except Exception as e:
             print(f"Error on {url}, attempt {attempt + 1}: {e}")
