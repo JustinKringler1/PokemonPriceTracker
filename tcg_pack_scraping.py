@@ -25,18 +25,17 @@ async def scrape_sealed_products_table(url, browser, retries=3):
     for attempt in range(retries):
         page = await browser.new_page()
         try:
-            # Load the URL and navigate to Sealed Products tab
+            # Load the URL and wait for the page to load
             await page.goto(url, timeout=180000)
             await page.wait_for_load_state("networkidle")
 
-            # Attempt to switch to the Sealed Products tab
-            sealed_tab = await page.query_selector("a:has-text('Sealed Products')")
-            if sealed_tab:
-                await sealed_tab.click()
-                await page.wait_for_load_state("networkidle")
-                await asyncio.sleep(2)  # Wait for the page to stabilize
+            # Use JavaScript to force click on the Sealed Products tab
+            sealed_tab_script = """document.querySelector("a:contains('Sealed Products')").click();"""
+            await page.evaluate(sealed_tab_script)
+            await page.wait_for_load_state("networkidle")
+            await asyncio.sleep(5)  # Allow extra time for content to load
 
-            # Check the number of columns to verify if we are in the correct tab
+            # Verify if the table structure matches the expected two columns
             rows = await page.query_selector_all("table tr")
             if rows:
                 first_row_cells = await rows[0].query_selector_all("th, td")
@@ -45,7 +44,7 @@ async def scrape_sealed_products_table(url, browser, retries=3):
                     await page.close()
                     continue  # Retry if the structure does not match
 
-            # Scrape data if the table structure is correct
+            # Scrape data from the table if structure is verified
             table_data = []
             headers = [await cell.inner_text() for cell in first_row_cells]
             print(f"Confirmed table headers for {url} (Sealed Products): {headers}")
@@ -55,7 +54,7 @@ async def scrape_sealed_products_table(url, browser, retries=3):
                 row_data = [await cell.inner_text() for cell in cells]
                 table_data.append(row_data)
 
-            # Convert to DataFrame and add metadata
+            # Convert to DataFrame and filter for "Booster Pack"
             df = pd.DataFrame(table_data, columns=headers)
             df = df[df["Product Name"].str.contains("Booster Pack", case=False, na=False)]
             df["source"] = url.split('/')[-1]
