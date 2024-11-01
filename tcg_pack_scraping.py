@@ -25,35 +25,36 @@ async def scrape_sealed_products_table(url, browser, retries=3):
     for attempt in range(retries):
         page = await browser.new_page()
         try:
-            # Load the URL and wait for the page to load
+            # Load the URL and wait for the page to fully load
             await page.goto(url, timeout=180000)
             await page.wait_for_load_state("networkidle")
 
-            # Click on the "Sealed Products" tab
-            sealed_tab = await page.query_selector("text=Sealed Products")
+            # Try to locate and click the "Sealed Products" tab by text
+            sealed_tab = page.get_by_text("Sealed Products")
             if sealed_tab:
                 await sealed_tab.click()
-                await page.wait_for_selector(".price-guide-table")  # Wait for the specific table to load
-                await asyncio.sleep(2)
+                await page.wait_for_load_state("networkidle")
+                await asyncio.sleep(2)  # Wait for content to load
 
-            # Verify the table has 2 columns to ensure it's the correct one
-            rows = await page.query_selector_all("table.price-guide-table tr")
-            if rows:
-                headers = await rows[0].query_selector_all("th")
-                if len(headers) != 2:
+            # Check if we're on the correct table by structure
+            while True:
+                rows = await page.query_selector_all("table tr")
+                if rows and len(await rows[0].query_selector_all("td")) == 2:
+                    break  # The expected table structure is found
+                else:
                     print(f"Table structure mismatch (expected 2 columns) for {url}. Retrying...")
-                    await page.close()
-                    continue
+                    await page.reload()  # Reload and try again if not found
+                    await sealed_tab.click()  # Click "Sealed Products" again
+                    await asyncio.sleep(2)
 
-            # Extract data if the table structure is correct
+            # Extract and filter data for "Booster Pack"
             table_data = []
-            for row in rows[1:]:
+            for row in rows:
                 cells = await row.query_selector_all("td")
                 row_data = [await cell.inner_text() for cell in cells]
-                if len(row_data) == 2:
+                if "Booster Pack" in row_data[0]:  # Filter by "Booster Pack"
                     table_data.append(row_data)
 
-            # Create DataFrame and add metadata
             df = pd.DataFrame(table_data, columns=["Product Name", "Market Price"])
             df["source"] = url.split('/')[-1]
             df["scrape_date"] = datetime.now().date()
@@ -70,6 +71,7 @@ async def scrape_sealed_products_table(url, browser, retries=3):
 
     print(f"Failed to scrape complete data from Sealed Products tab for {url} after {retries} attempts.")
     return pd.DataFrame()
+
 
 async def scrape_and_store_data():
     delete_today_data()
