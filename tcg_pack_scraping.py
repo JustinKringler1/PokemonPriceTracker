@@ -29,13 +29,14 @@ async def scrape_sealed_products_table(url, browser, retries=3):
             await page.goto(url, timeout=180000)
             await page.wait_for_load_state("networkidle")
 
-            # Use JavaScript to force click on the Sealed Products tab
-            sealed_tab_script = """document.querySelector("a:contains('Sealed Products')").click();"""
-            await page.evaluate(sealed_tab_script)
-            await page.wait_for_load_state("networkidle")
-            await asyncio.sleep(5)  # Allow extra time for content to load
+            # Attempt to find and click the "Sealed Products" tab
+            sealed_tab = page.locator("a", has_text="Sealed Products")
+            if await sealed_tab.count() > 0:
+                await sealed_tab.click()
+                await page.wait_for_load_state("networkidle")
+                await asyncio.sleep(5)  # Allow extra time for content to load
 
-            # Verify if the table structure matches the expected two columns
+            # Check if the table structure matches the expected two columns
             rows = await page.query_selector_all("table tr")
             if rows:
                 first_row_cells = await rows[0].query_selector_all("th, td")
@@ -75,6 +76,7 @@ async def scrape_sealed_products_table(url, browser, retries=3):
 
     print(f"Failed to scrape complete data from Sealed Products tab for {url} after {retries} attempts.")
     return pd.DataFrame()
+
 
 
 async def scrape_and_store_data():
