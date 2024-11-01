@@ -49,12 +49,12 @@ async def scrape_sealed_products_table(url, browser, retries=3):
                 previous_row_count = current_row_count
                 await asyncio.sleep(2)
 
-            # Scrape and filter data
             if current_row_count == 0:
-                print(f"No rows found in sealed products table for {url} on attempt {attempt + 1}. Retrying...")
+                print(f"No rows found in sealed products table for {url}. Refreshing...")
                 await page.close()
                 continue
 
+            # Scrape and filter data
             table_data = []
             target_columns = ["Product Name", "Market Price"]
             headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
@@ -67,8 +67,10 @@ async def scrape_sealed_products_table(url, browser, retries=3):
             # Create DataFrame and filter by "Booster Pack"
             df = pd.DataFrame(table_data, columns=[headers[i] for i in indices])
             booster_df = df[df["Product Name"].str.contains("Booster Pack", case=False, na=False)]
-            df["source"] = url.split('/')[-1]
-            df["scrape_date"] = datetime.now().date()
+            
+            # Ensure `scrape_date` column is included
+            booster_df["source"] = url.split('/')[-1]
+            booster_df["scrape_date"] = datetime.now().date()
 
             if not booster_df.empty:
                 print(f"Filtered data successfully for {url} - {len(booster_df)} rows")
@@ -78,13 +80,17 @@ async def scrape_sealed_products_table(url, browser, retries=3):
                 print(f"No 'Booster Pack' entries found for {url}. Refreshing...")
 
         except Exception as e:
-            print(f"Error on {url}, attempt {attempt + 1}: {e}")
-            await page.close()
+            print(f"Error on {url}: {e}")
 
-        await asyncio.sleep(5)  # Retry delay
+        await page.close()
+        await asyncio.sleep(5)  # Wait before retrying
 
     print(f"Failed to scrape complete data from Sealed Products for {url} after {retries} attempts.")
-    return pd.DataFrame()
+    
+    # Ensure an empty DataFrame has both `source` and `scrape_date` columns
+    return pd.DataFrame(columns=["Product Name", "Market Price", "source", "scrape_date"])
+
+
 
 async def scrape_and_store_data():
     delete_today_data()
