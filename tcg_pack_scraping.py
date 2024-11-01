@@ -42,19 +42,18 @@ async def scrape_sealed_products_table(url, browser, retries=3):
             row_count = await rows.count()
             print(f"Found {row_count} rows in the table for {url}")
 
-            # Check if table structure is correct with 2 columns
+            # Check if table structure is correct with 5 columns
             if row_count > 0:
                 header_cells = await rows.nth(0).locator("td, th").all()
                 if len(header_cells) == 5:
                     table_data = []
-                    for i in range(1, row_count):  # Skip header row
-                        row = rows.nth(i)
-                        cells = await row.locator("td").all_text_contents()
-                        if len(cells) == 2:
-                            table_data.append(cells)
+                    product_name = await cells[1].inner_text()
+                    market_price = await cells[2].inner_text()
+                    table_data.append([product_name, market_price])
 
                     # Create DataFrame
                     df = pd.DataFrame(table_data, columns=["Product Name", "Market Price"])
+                    df = df[df["Product Name"].str.contains(r"(?i)booster\s*pack", regex=True, na=False)]
                     df["source"] = url.split('/')[-1]
                     df["scrape_date"] = datetime.now().date()
 
