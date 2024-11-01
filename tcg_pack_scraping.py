@@ -45,7 +45,7 @@ async def scrape_sealed_products_table(url, browser, retries=3):
             # Check if table structure is correct with 2 columns
             if row_count > 0:
                 header_cells = await rows.nth(0).locator("td, th").all()
-                if len(header_cells) == 2:
+                if len(header_cells) == 5:
                     table_data = []
                     for i in range(1, row_count):  # Skip header row
                         row = rows.nth(i)
