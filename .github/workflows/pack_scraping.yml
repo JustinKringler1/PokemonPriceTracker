@@ -35,4 +35,4 @@ jobs:
       env:
         BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/bigquery-key.json
-      run: tcg_pack_scraping.py
+      run: python tcg_pack_scraping.py
