@@ -23,7 +23,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pandas google-cloud-bigquery playwright
+        pip install pandas google-cloud-bigquery playwright pyarrow
         python -m playwright install
 
     - name: Configure BigQuery credentials
