@@ -31,10 +31,8 @@ jobs:
         BIGQUERY_CREDENTIALS_JSON: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
       run: echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
 
-    - name: Run pack scraping script
+    - name: Run Pack scraping script
       env:
         BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
-        GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json
-      run: |
-        echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
-        python tcg_pack_scraping.py
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/bigquery-key.json
+      run: tcg_pack_scraping.py
