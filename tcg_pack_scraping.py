@@ -119,10 +119,6 @@ def upload_to_bigquery(df):
 
     df = df.astype({
         'Product Name': 'string',
-        'Printing': 'string',
-        'Condition': 'string',
-        'Rarity': 'string',
-        'Number': 'string',
         'Market Price': 'string',
         'source': 'string',
         'scrape_date': 'datetime64[ns]'
