@@ -25,53 +25,53 @@ async def scrape_sealed_products_table(url, browser, retries=3):
     for attempt in range(retries):
         page = await browser.new_page()
         try:
-            # Load the URL and navigate to Sealed Products tab
             await page.goto(url, timeout=180000)
-            await page.wait_for_selector(".tab-nav")
+            await page.wait_for_load_state("networkidle")
 
-            # Click the "Sealed Products" tab using a text selector
-            sealed_tab = await page.locator("text=Sealed Products")
-            await sealed_tab.click()
-            await page.wait_for_selector("table")
+            # Find tabs with .martech-text-capitalize and exclude "Singles"
+            tabs = await page.query_selector_all(".martech-text-capitalize")
+            for tab in tabs:
+                tab_text = await tab.inner_text()
+                if "Singles" not in tab_text:  # Ensure it is not the Singles tab
+                    await tab.click()
+                    await page.wait_for_timeout(3000)  # Wait for the tab to load
+                    break
+            
+            # Locate the table with XPath
+            rows = await page.locator("xpath=//*[contains(concat(' ', @class, ' '), ' table ')]//tr").all()
+            print(f"Found {len(rows)} rows in the table for {url}")
 
-            # Check for table data structure
-            rows = await page.query_selector_all("table tr")
-            if len(rows) == 0:
-                print(f"No rows found in sealed products table for {url} on attempt {attempt + 1}. Retrying...")
-                await page.close()
-                continue
+            # Check if table structure is correct with 2 columns
+            if len(rows) > 0 and len(await rows[0].query_selector_all("td, th")) == 2:
+                table_data = []
+                for row in rows[1:]:  # Skip header row
+                    cells = await row.query_selector_all("td")
+                    row_data = [await cell.inner_text() for cell in cells]
+                    table_data.append(row_data)
 
-            # Scrape and filter data
-            table_data = []
-            target_columns = ["Product Name", "Market Price"]
-            headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
-            indices = [headers.index(col) for col in target_columns if col in headers]
+                # Create DataFrame
+                df = pd.DataFrame(table_data, columns=["Product Name", "Market Price"])
+                df = df[df["Product Name"].str.contains("Booster Pack", case=False, na=False)]
+                df["source"] = url.split('/')[-1]
+                df["scrape_date"] = datetime.now().date()
 
-            for row in rows[1:]:
-                cells = await row.query_selector_all("td")
-                row_data = [await cells[i].inner_text() for i in indices if i < len(cells)]
-                table_data.append(row_data)
+                if not df.empty:
+                    print(f"Filtered data successfully for {url} - {len(df)} rows")
+                    await page.close()
+                    return df
+                else:
+                    print(f"No 'Booster Pack' entries found for {url}. Retrying...")
 
-            # Create DataFrame and filter by "Booster Pack"
-            df = pd.DataFrame(table_data, columns=[headers[i] for i in indices])
-            booster_df = df[df["Product Name"].str.contains("Booster Pack", case=False, na=False)]
-            df["source"] = url.split('/')[-1]
-            df["scrape_date"] = datetime.now().date()
-
-            if not booster_df.empty:
-                print(f"Filtered data successfully for {url} - {len(booster_df)} rows")
-                await page.close()
-                return booster_df
             else:
-                print(f"No 'Booster Pack' entries found for {url}. Refreshing...")
+                print(f"Table structure mismatch (expected 2 columns) for {url}. Retrying...")
 
         except Exception as e:
             print(f"Error on {url}, attempt {attempt + 1}: {e}")
+        finally:
             await page.close()
+            await asyncio.sleep(5)  # Retry delay
 
-        await asyncio.sleep(5)  # Retry delay
-
-    print(f"Failed to scrape complete data from Sealed Products for {url} after {retries} attempts.")
+    print(f"Failed to scrape complete data from Sealed Products tab for {url} after {retries} attempts.")
     return pd.DataFrame()
 
 async def scrape_and_store_data():
