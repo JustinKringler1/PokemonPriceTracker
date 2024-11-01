@@ -48,10 +48,10 @@ async def scrape_sealed_products_table(url, browser, retries=3):
                 if len(header_cells) == 5:
                     for row in rows:
                         cells = await row.locator("td").all()
-                            if len(cells) >= 5:  # Ensure there are at least 5 columns
-                                product_name = await cells[1].inner_text()
-                                market_price = await cells[2].inner_text()
-                                table_data.append([product_name, market_price])
+                        if len(cells) >= 5:  # Ensure there are at least 5 columns
+                            product_name = await cells[1].inner_text()
+                            market_price = await cells[2].inner_text()
+                            table_data.append([product_name, market_price])
          
 
                     # Create DataFrame
