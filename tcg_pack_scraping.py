@@ -55,6 +55,11 @@ async def scrape_sealed_products_table(url, browser, retries=3):
 
                     # Create DataFrame
                     df = pd.DataFrame(table_data, columns=["Product Name", "Market Price"])
+
+                    print("Product Names found in the table:")
+                    for name in df["Product Name"]:
+                        print(name)
+                    
                     df = df[df["Product Name"].str.contains(r"(?i)booster\s*pack", regex=True, na=False)]
                     df["source"] = url.split('/')[-1]
                     df["scrape_date"] = datetime.now().date()
