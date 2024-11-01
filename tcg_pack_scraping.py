@@ -56,7 +56,7 @@ async def scrape_sealed_products_table(url, browser, retries=3):
                 continue
 
             table_data = []
-            target_columns = ["Product Name", "Printing", "Condition", "Rarity", "Number", "Market Price"]
+            target_columns = ["Product Name", "Market Price"]
             headers = [await cell.inner_text() for cell in await rows[0].query_selector_all("th")]
             indices = [headers.index(col) for col in target_columns if col in headers]
             for row in rows[1:]:
