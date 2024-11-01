@@ -32,4 +32,4 @@ jobs:
         GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json
       run: |
         echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
-        python pack_scraping_script.py
+        python tcg_pack_scraping.py
