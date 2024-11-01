@@ -1,0 +1,35 @@
+name: Daily Pack Scraping
+
+on:
+  workflow_run:
+    workflows: ["Daily Scraping"]  # Triggers after the previous workflow completes
+    types:
+      - completed
+  workflow_dispatch:  # Allows manual triggering of this workflow
+
+jobs:
+  scrape-packs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas google-cloud-bigquery playwright
+        python -m playwright install
+
+    - name: Run pack scraping script
+      env:
+        BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
+        GOOGLE_APPLICATION_CREDENTIALS: bigquery-key.json
+      run: |
+        echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
+        python pack_scraping_script.py
