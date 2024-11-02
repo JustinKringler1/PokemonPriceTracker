@@ -30,8 +30,8 @@ This repository features:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/yourrepo.git
-cd yourrepo
+git clone https://github.com/JustinKringler1/PokemonPriceTracker.git
+cd PokemonPriceTracker
 ```
 
 ### 2. BigQuery Setup
