@@ -1,5 +1,5 @@
 """
-Script Name: tcg_pack_scraping.py
+Script Name: tcg_card_scraping.py
 Description:
     This script scrapes Pokémon card price data from specified URLs on the TCGPlayer website.
     The script loads URL extensions and expected row counts from a CSV file ("set_dictionary.csv"),
