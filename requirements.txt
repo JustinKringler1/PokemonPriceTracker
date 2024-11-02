@@ -1,0 +1,4 @@
+pandas==2.1.1
+google-cloud-bigquery==3.11.4
+playwright==1.39.0
+pyarrow==13.0.0
