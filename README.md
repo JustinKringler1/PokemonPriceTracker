@@ -32,6 +32,7 @@ This repository features:
 ```bash
 git clone https://github.com/yourusername/yourrepo.git
 cd yourrepo
+```
 
 ### 2. BigQuery Setup
 - Set up a BigQuery project on GCP and create a dataset named pokemon_data.
@@ -51,6 +52,7 @@ All dependencies are listed in requirements.txt. To install locally:
 
 ```bash
 pip install -r requirements.txt
+```
 
 ## Usage
 ### Automated Scraping with GitHub Actions
