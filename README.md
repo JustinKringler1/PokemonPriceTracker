@@ -1,4 +1,4 @@
-# Pokémon Card Price Scraper
+# PokemonPriceTracker
 
 This repository contains scripts to scrape Pokémon card pricing data from TCGPlayer.com and store it in Google BigQuery. The setup uses GitHub Actions for automated scraping of both individual cards and sealed products (e.g., booster packs) at scheduled intervals.
 
