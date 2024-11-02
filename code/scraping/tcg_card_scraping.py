@@ -2,7 +2,7 @@
 Script Name: tcg_card_scraping.py
 Description:
     This script scrapes Pokémon card price data from specified URLs on the TCGPlayer website.
-    The script loads URL extensions and expected row counts from a CSV file ("set_dictionary.csv"),
+    The script loads URL extensions and expected row counts from a CSV file ("card_set_dictionary.csv"),
     navigates to each page, and verifies the row count of data tables before scraping.
     
     If the row count is as expected, the data is scraped and then uploaded to Google BigQuery
@@ -115,14 +115,14 @@ async def scrape_table_data(url, browser, expected_rows):
 # Main Function: Orchestrate the scraping and uploading process
 async def scrape_and_store_data():
     """
-    Deletes current day's data in BigQuery, scrapes data from URLs in set_dictionary.csv,
+    Deletes current day's data in BigQuery, scrapes data from URLs in card_set_dictionary.csv,
     and uploads the results to BigQuery.
     """
     # Step 1: Delete today's data
     delete_today_data()
 
     # Step 2: Load URLs and expected row counts
-    set_df = pd.read_csv("set_dictionary.csv")
+    set_df = pd.read_csv("card_set_dictionary.csv")
     all_data = []
 
     # Step 3: Initialize Playwright browser
