@@ -1,43 +1,72 @@
-# TCGPlayer Pokémon Pack Price Scraper
+# Pokémon Card Price Scraper
 
-## Overview
-The TCGPlayer Pokémon Pack Price Scraper is an automated data scraping tool built to collect price data for Pokémon booster packs from the TCGPlayer website. Using Playwright and Google BigQuery, the scraper navigates specific URLs to extract product and market price details, which it then stores in BigQuery. The project enables continuous monitoring and updates on TCGPlayer prices.
+This repository contains scripts to scrape Pokémon card pricing data from TCGPlayer.com and store it in Google BigQuery. The setup uses GitHub Actions for automated scraping of both individual cards and sealed products (e.g., booster packs) at scheduled intervals.
 
 ## Table of Contents
-1. [Features](#features)
-2. [Getting Started](#getting-started)
-   - [Prerequisites](#prerequisites)
-   - [Installation](#installation)
-   - [Configuration](#configuration)
-3. [Usage](#usage)
-4. [Repository Structure](#repository-structure)
-5. [Data Workflow](#data-workflow)
-6. [Scheduling with GitHub Actions](#scheduling-with-github-actions)
-7. [Contributing](#contributing)
-8. [License](#license)
 
----
+1. [Overview](#overview)
+2. [Requirements](#requirements)
+3. [Setup](#setup)
+4. [Usage](#usage)
+5. [Folder Structure](#folder-structure)
+6. [Contributing](#contributing)
+7. [License](#license)
 
-## Features
-- **Automated Web Scraping**: Extracts Pokémon booster pack data from TCGPlayer in a scheduled workflow.
-- **Google BigQuery Integration**: Efficiently stores and manages scraped data in a centralized database.
-- **Retry Mechanism**: Ensures reliable data capture with configurable retry attempts.
-- **Scheduled Updates**: Automates scraping via GitHub Actions to keep data up-to-date.
-- **Customizable Filters**: Filters entries to only include rows containing “Booster Pack” in the product name.
+## Overview
 
-## Getting Started
+This repository features:
+- Automated scraping for Pokémon card prices, fetching both individual card prices and sealed product prices.
+- BigQuery integration for data storage, allowing analytics and visualization.
+- GitHub Actions workflows for regular, automated scraping.
 
-### Prerequisites
-- **Python 3.8+**: The scraper requires Python 3.8 or newer.
-- **Google Cloud SDK**: Set up and authenticate Google BigQuery access.
-- **GitHub Repository Secrets**:
-    - `BIGQUERY_PROJECT_ID`: Your Google Cloud project ID.
-    - `BIGQUERY_CREDENTIALS_JSON`: JSON credentials for Google Cloud authentication.
+## Requirements
 
-### Installation
-Clone the repository:
+- **Python**: Version 3.8 or higher
+- **Google Cloud Platform**: Set up with a BigQuery project and service account
+- **GitHub Secrets**: For securely storing credentials and project configurations
+
+## Setup
+
+### 1. Clone the repository
+
 ```bash
-git clone https://github.com/yourusername/tcgplayer-pokemon-pack-scraper.git
-cd tcgplayer-pokemon-pack-scraper
+git clone https://github.com/yourusername/yourrepo.git
+cd yourrepo
 
+### 2. BigQuery Setup
+- Set up a BigQuery project on GCP and create a dataset named pokemon_data.
+- Add two tables in the dataset:
+   - pokemon_prices for individual card prices
+   - pokemon_packs for sealed product prices
+- Generate a BigQuery service account key and download the JSON file.
 
+### 3. GitHub Secrets Configuration
+Add the following secrets to your GitHub repository for secure access:
+
+- BIGQUERY_PROJECT_ID: Your BigQuery Project ID
+- BIGQUERY_CREDENTIALS_JSON: Paste the contents of your BigQuery service account JSON key
+
+### 4. Dependencies
+All dependencies are listed in requirements.txt. To install locally:
+
+```bash
+pip install -r requirements.txt
+
+## Usage
+### Automated Scraping with GitHub Actions
+- Workflow Files:
+   - card_scraping.yml: For individual card price scraping.
+   - pack_scraping.yml: For sealed product price scraping.
+
+## Folder Structure
+tcg_scraping_script.py: Script to scrape individual card prices.
+tcg_pack_scraping.py: Script to scrape sealed product prices.
+.github/workflows/scraping.yml: Workflow for scraping individual card prices.
+.github/workflows/pack_scraping.yml: Workflow for scraping sealed product prices.
+requirements.txt: Contains the list of required packages.
+
+## Contributing
+Contributions are welcome. For significant changes, please open an issue first to discuss your ideas.
+
+## License
+Distributed under the MIT License.
