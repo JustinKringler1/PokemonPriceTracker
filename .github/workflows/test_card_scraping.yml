@@ -31,4 +31,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: scraped_data_test
-          path: test/scraped_data_*.csv
+          path: test/test_card_prices.csv
