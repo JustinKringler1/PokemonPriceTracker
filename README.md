@@ -61,11 +61,11 @@ pip install -r requirements.txt
    - pack_scraping.yml: For sealed product price scraping.
 
 ## Folder Structure
-tcg_scraping_script.py: Script to scrape individual card prices.
-tcg_pack_scraping.py: Script to scrape sealed product prices.
-.github/workflows/scraping.yml: Workflow for scraping individual card prices.
-.github/workflows/pack_scraping.yml: Workflow for scraping sealed product prices.
-requirements.txt: Contains the list of required packages.
+- tcg_scraping_script.py: Script to scrape individual card prices.
+- tcg_pack_scraping.py: Script to scrape sealed product prices.
+- .github/workflows/scraping.yml: Workflow for scraping individual card prices.
+- .github/workflows/pack_scraping.yml: Workflow for scraping sealed product prices.
+- requirements.txt: Contains the list of required packages.
 
 ## Contributing
 Contributions are welcome. For significant changes, please open an issue first to discuss your ideas.
