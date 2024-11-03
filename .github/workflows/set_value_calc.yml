@@ -26,11 +26,11 @@ jobs:
           BIGQUERY_PROJECT_ID: ${{ secrets.BIGQUERY_PROJECT_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          python path/to/your_script.py
+          python code/analytics/best_value_set.py
           
       - name: Upload result CSV to GitHub artifact
         if: success()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: set_pull_values
           path: data/set_pull_values.csv
