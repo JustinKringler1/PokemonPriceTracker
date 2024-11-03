@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from datetime import datetime
 from google.cloud import bigquery
-import db-dtypes
+import db_dtypes
 
 # Constants for BigQuery Project
 PROJECT_ID = os.getenv("BIGQUERY_PROJECT_ID")
