@@ -2,7 +2,7 @@
 Script Name: tcg_pack_scraping.py
 Description:
     This script scrapes Pokémon booster pack price data from the TCGPlayer website.
-    It reads URL extensions from a CSV file ("pack_set_dictionary.csv") and navigates to each URL,
+    It reads URL extensions from a CSV file ("data/pack_set_dictionary.csv") and navigates to each URL,
     filtering rows in the sealed products table for items containing 'Booster Pack' in the 'Product Name'.
     Once the relevant data is collected, it is uploaded to Google BigQuery, with today's records deleted first
     to avoid duplication.
@@ -126,7 +126,7 @@ async def scrape_and_store_data():
     """
     delete_today_data()
     
-    sets_df = pd.read_csv("pack_set_dictionary.csv")
+    sets_df = pd.read_csv("data/pack_set_dictionary.csv")
     all_data = []
     
     async with async_playwright() as p:
