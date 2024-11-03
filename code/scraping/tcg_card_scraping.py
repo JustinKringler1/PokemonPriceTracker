@@ -156,9 +156,16 @@ def upload_to_bigquery(df):
     Args:
         df (pd.DataFrame): DataFrame containing the scraped data to upload.
     """
+
+    columns_to_upload = ["Printing", "Condition", "Rarity", "Number", "Market Price", "source", "scrape_date"]
+    df = df[columns_to_upload].copy()  # Select only the columns we want to upload
+
     # Convert columns to appropriate data types for BigQuery
     df = df.astype({
-        'Product Name': 'string',
+        'Printing': 'string',
+        'Condition': 'string',
+        'Rarity': 'string',
+        'Number': 'string',
         'Market Price': 'string',
         'source': 'string',
         'scrape_date': 'datetime64[ns]'
