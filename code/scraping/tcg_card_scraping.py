@@ -160,6 +160,10 @@ def upload_to_bigquery(df):
     columns_to_upload = ["Printing", "Condition", "Rarity", "Number", "Market Price", "source", "scrape_date"]
     df = df[columns_to_upload].copy()  # Select only the columns we want to upload
 
+    df['Market Price'] = df['Market Price'].astype(str)
+    df['scrape_date'] = pd.to_datetime(df['scrape_date'], errors='coerce')
+    df.dropna(subset=['scrape_date'], inplace=True)
+    
     # Convert columns to appropriate data types for BigQuery
     df = df.astype({
         'Printing': 'string',
