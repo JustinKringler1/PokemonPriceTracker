@@ -55,7 +55,7 @@ print(pull_rates_df.head())
 pull_rates_df["Probability"] = pd.to_numeric(pull_rates_df["Probability"], errors='coerce')
 
 # Perform the inner join on 'set' column
-merged_df = pd.merge(grouped_df, pull_rates_df, on="set", how="inner")
+merged_df = pd.merge(grouped_df, pull_rates_df, on=["set","Rarity"], how="inner")
 
 print(merged_df.head())
 
