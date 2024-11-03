@@ -1,8 +1,8 @@
 import os
 import pandas as pd
-from datetime import datetime
 from google.cloud import bigquery
 import db_dtypes
+from datetime import datetime, timedelta
 
 # Constants for BigQuery Project
 PROJECT_ID = os.getenv("BIGQUERY_PROJECT_ID")
@@ -15,14 +15,16 @@ client = bigquery.Client()
 # Load the sets from the CSV file
 pack_set_df = pd.read_csv("data/pack_set_dictionary.csv")
 sets = pack_set_df["set"].tolist()
-today_date = datetime.now().date().isoformat()
+
+# Calculate yesterday's date
+yesterday_date = (datetime.now() - timedelta(days=1)).date()
 
 # Format the SQL query
 set_list_sql = "', '".join(sets)  # Join sets with quotes and commas
 sql_query = f"""
 SELECT *
 FROM `{TABLE_ID}`
-WHERE scrape_date = '{today_date}'
+WHERE scrape_date = '{yesterday_date}'
   AND source IN ('{set_list_sql}');
 """
 
