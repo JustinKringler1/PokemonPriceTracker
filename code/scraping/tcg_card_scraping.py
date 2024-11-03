@@ -82,7 +82,7 @@ async def scrape_table_data(url, browser, expected_rows):
             print(f"Attempt {attempt + 1}: Found {row_count} rows in the table for {url}")
 
             # If row count matches the expected, proceed to scrape
-            if row_count == expected_rows + 1:
+            if row_count >= expected_rows:
                 data = []
                 headers = [await cell.inner_text() for cell in await rows.nth(0).locator("th").all()]
                 
