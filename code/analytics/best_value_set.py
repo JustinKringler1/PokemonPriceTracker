@@ -20,7 +20,7 @@ today_date = datetime.now().date().isoformat()
 set_list_sql = "', '".join(sets)  # Join sets with quotes and commas
 sql_query = f"""
 SELECT *
-FROM `your_project_id.your_dataset_id.pokemon_card_data`
+FROM `{TABLE_ID}`
 WHERE scrape_date = '{today_date}'
   AND source IN ('{set_list_sql}');
 """
