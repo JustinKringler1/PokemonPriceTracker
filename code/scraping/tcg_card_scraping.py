@@ -95,7 +95,7 @@ async def scrape_table_data(url, browser, expected_rows):
                 df = pd.DataFrame(data, columns=headers)
 
                 # Check for null values in 'Product Type' and retry if any nulls are found
-                if df['Product Type'].isna().any():
+                if df['Product Name'].isna().any():
                     print(f"Null values found in 'Product Type' for {url}. Retrying...")
                 else:
                     df["source"] = url.split('/')[-1]
@@ -171,6 +171,7 @@ def upload_to_bigquery(df):
     
     # Convert columns to appropriate data types for BigQuery
     df = df.astype({
+        'Product Name': 'string',
         'Printing': 'string',
         'Condition': 'string',
         'Rarity': 'string',
