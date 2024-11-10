@@ -75,8 +75,8 @@ async def scrape_table_data(url, browser, expected_rows):
                 df = pd.DataFrame(data, columns=headers)
 
                 # Check for null values in 'Product Type' and retry if any nulls are found
-                if df['Product Type'].isna().any():
-                    print(f"Null values found in 'Product Type' for {url}. Retrying...")
+                if df['Product Name'].isna().any():
+                    print(f"Null values found in 'Product Name' for {url}. Retrying...")
                 else:
                     df["source"] = url.split('/')[-1]
                     df["scrape_date"] = datetime.now().date()
