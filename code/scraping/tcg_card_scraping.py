@@ -59,7 +59,7 @@ def delete_today_data():
 async def scrape_table_data(url, browser, expected_rows):
     """
     Navigates to a specified URL and scrapes Pokémon card price data if the row count matches `expected_rows`.
-    Will refresh the page up to 3 times if the row count is incorrect.
+    Will refresh the page up to 3 times if the row count is incorrect or if 'Product Type' has null values.
 
     Args:
         url (str): URL to scrape data from.
@@ -93,12 +93,17 @@ async def scrape_table_data(url, browser, expected_rows):
                     data.append(row_data)
 
                 df = pd.DataFrame(data, columns=headers)
-                df["source"] = url.split('/')[-1]
-                df["scrape_date"] = datetime.now().date()
 
-                print(f"Scraped data successfully from {url} - {len(df)} rows")
-                await page.close()
-                return df
+                # Check for null values in 'Product Type' and retry if any nulls are found
+                if df['Product Type'].isna().any():
+                    print(f"Null values found in 'Product Type' for {url}. Retrying...")
+                else:
+                    df["source"] = url.split('/')[-1]
+                    df["scrape_date"] = datetime.now().date()
+
+                    print(f"Scraped data successfully from {url} - {len(df)} rows")
+                    await page.close()
+                    return df
             else:
                 print(f"Row count {row_count} does not match expected {expected_rows} for {url}. Retrying...")
 
