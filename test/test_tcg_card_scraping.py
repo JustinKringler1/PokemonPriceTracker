@@ -70,6 +70,11 @@ async def scrape_table_data(url, browser, expected_rows):
                 for i in range(1, row_count):
                     cells = await rows.nth(i).locator("td").all()
                     row_data = [await cell.inner_text() for cell in cells]
+
+                    # Extract image URL from the 'Image' column (assuming it's the correct position)
+                    image_url = await cells[headers.index("Image")].locator("img").get_attribute("src")
+                    row_data[headers.index("Image")] = image_url  # Replace the placeholder with actual URL
+                    
                     data.append(row_data)
 
                 df = pd.DataFrame(data, columns=headers)
