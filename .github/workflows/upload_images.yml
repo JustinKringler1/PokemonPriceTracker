@@ -26,7 +26,8 @@ jobs:
       env:
         GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud.json
       run: |
-        echo "${{ secrets.BIGQUERY_CREDENTIALS_JSON }}" > $GOOGLE_APPLICATION_CREDENTIALS
+        echo "${{ secrets.BIGQUERY_CREDENTIALS_JSON }}" | base64 --decode > $GOOGLE_APPLICATION_CREDENTIALS
+
       
       
     - name: Run image processing script
