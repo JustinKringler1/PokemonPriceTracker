@@ -35,42 +35,42 @@ def download_and_upload_image(image_url, filename):
         return None
 
 # Function to update the GCS URI in BigQuery for each row
-def update_gcs_uri_in_bigquery(row_id, gcs_uri):
+def update_GCS_URI_in_bigquery(id, GCS_URI):
     update_query = f"""
     UPDATE `{TABLE_ID}`
-    SET GCS_URI = @gcs_uri
-    WHERE row_id = @row_id
+    SET gcs_uri = @GCS_URI
+    WHERE id = @id
     """
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
-            bigquery.ScalarQueryParameter("gcs_uri", "STRING", gcs_uri),
-            bigquery.ScalarQueryParameter("row_id", "STRING", row_id),
+            bigquery.ScalarQueryParameter("GCS_URI", "STRING", GCS_URI),
+            bigquery.ScalarQueryParameter("id", "STRING", id),
         ]
     )
     bigquery_client.query(update_query, job_config=job_config).result()
-    print(f"Updated GCS URI for row ID {row_id}")
+    print(f"Updated GCS URI for row ID {id}")
 
 # Main function to process images
 def process_images():
-    # Query BigQuery for rows where GCS_URI is NULL
+    # Query BigQuery for rows where gcs_uri is NULL
     query = f"""
-    SELECT row_id, Product_Name, Image
+    SELECT id, Product_Name, Image
     FROM `{TABLE_ID}`
-    WHERE GCS_URI IS NULL
+    WHERE gcs_uri IS NULL
     """
     rows = bigquery_client.query(query).result()
 
     for row in rows:
         image_url = row["Image"]
-        row_id = row["row_id"]
-        filename = f"{row['Product_Name'].replace(' ', '_')}_{row_id}.jpg"
+        id = row["id"]
+        filename = f"{row['Product_Name'].replace(' ', '_')}_{id}.jpg"
 
         # Download and upload the image
-        gcs_uri = download_and_upload_image(image_url, filename)
+        GCS_URI = download_and_upload_image(image_url, filename)
 
         # Update BigQuery with the GCS URI if successful
-        if gcs_uri:
-            update_gcs_uri_in_bigquery(row_id, gcs_uri)
+        if GCS_URI:
+            update_GCS_URI_in_bigquery(id, GCS_URI)
 
 # Run the script
 if __name__ == "__main__":
