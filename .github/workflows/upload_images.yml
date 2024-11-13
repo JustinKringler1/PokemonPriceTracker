@@ -35,4 +35,4 @@ jobs:
     - name: Run image processing script
       env:
         GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
-      run: python tcg_card_image_upload.py
+      run: python code/scraping/tcg_card_image_upload.py
