@@ -44,7 +44,7 @@ def update_GCS_URI_in_bigquery(id, GCS_URI):
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
             bigquery.ScalarQueryParameter("GCS_URI", "STRING", GCS_URI),
-            bigquery.ScalarQueryParameter("id", "STRING", id),
+            bigquery.ScalarQueryParameter("id", "INT64", id),  # Set id as INT64
         ]
     )
     bigquery_client.query(update_query, job_config=job_config).result()
