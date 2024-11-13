@@ -22,15 +22,14 @@ jobs:
         pip install -r requirements.txt
         pip install google-cloud-storage google-cloud-bigquery requests
 
-    - name: Configure BigQuery credentials
+    - name: Authenticate with Google Cloud
       env:
-        BIGQUERY_CREDENTIALS_JSON: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
-      run: echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
-
-    - name: Configure BigQuery bucket
-      env:
-        BIGQUERY_CREDENTIALS_JSON: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
-      run: echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+      run: |
+        echo "${{ secrets.GCP_CREDENTIALS }}" > gcloud.json
+        gcloud auth activate-service-account --key-file=gcloud.json
+        gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+      
       
     - name: Run image processing script
       env:
