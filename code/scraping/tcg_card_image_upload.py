@@ -63,7 +63,7 @@ def process_images():
     for row in rows:
         image_url = row["Image"]
         id = row["id"]
-        filename = f"{row['Product_Name'].replace(' ', '_')}_{id}.jpg"
+        filename = f"{row['Product Name'].replace(' ', '_')}_{id}.jpg"
 
         # Download and upload the image
         GCS_URI = download_and_upload_image(image_url, filename)
