@@ -54,7 +54,7 @@ def update_GCS_URI_in_bigquery(id, GCS_URI):
 def process_images():
     # Query BigQuery for rows where gcs_uri is NULL
     query = f"""
-    SELECT id, Product_Name, Image
+    SELECT id, `Product Name`, Image
     FROM `{TABLE_ID}`
     WHERE gcs_uri IS NULL
     """
