@@ -1,0 +1,38 @@
+name: Upload Images to GCS
+
+on:
+  workflow_dispatch:  # Manually triggered from GitHub Actions
+
+jobs:
+  upload_images:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.8"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install google-cloud-storage google-cloud-bigquery requests
+
+    - name: Configure BigQuery credentials
+      env:
+        BIGQUERY_CREDENTIALS_JSON: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
+      run: echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
+
+    - name: Configure BigQuery bucket
+      env:
+        BIGQUERY_CREDENTIALS_JSON: ${{ secrets.BIGQUERY_CREDENTIALS_JSON }}
+      run: echo "$BIGQUERY_CREDENTIALS_JSON" > bigquery-key.json
+      
+    - name: Run image processing script
+      env:
+        GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+      run: python tcg_card_image_upload.py
