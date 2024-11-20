@@ -33,8 +33,12 @@ jobs:
           mkdir -p data  # Ensure the data directory exists
           python code/scraping/tcg_set_scraping.py
 
-      - name: Upload sets.csv as an artifact (optional)
-        uses: actions/upload-artifact@v3
-        with:
-          name: sets-csv
-          path: data/sets.csv
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/sets.csv
+          git commit -m "Update sets.csv"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
