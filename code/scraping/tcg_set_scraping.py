@@ -1,99 +1,71 @@
-import time
-import csv
-import re
-import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+import os
+import csv
+import re
 
-
-# Function to apply regex transformations
-def transform_text(text):
-    text = text.lower()  # Convert to lowercase
-    text = re.sub(r'\b&\b', 'and', text)  # Replace '&' with 'and'
-    text = re.sub(r'[^\w\s]', '', text)  # Remove all punctuation
-    text = re.sub(r'\s+', ' ', text.strip())  # Strip spaces and reduce to single spaces
-    return text.replace(' ', '-')  # Replace spaces with dashes
-
-
-# Function to count rows in an existing CSV file
-def count_csv_rows(file_path):
-    if not os.path.exists(file_path):
-        return 0
-    with open(file_path, mode="r", encoding="utf-8") as file:
-        return sum(1 for _ in file) - 1  # Subtract 1 for the header row
-
-
-# URL of the page
-url = "https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides"
-
-# Chrome options for running in headless mode (necessary for GitHub Actions)
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
+# Chrome options for headless mode
+options = Options()
+options.add_argument("--headless")
+options.add_argument("--window-size=1920,1080")
+options.add_argument("--disable-gpu")
 
 # Initialize the WebDriver
-service = Service()
-driver = webdriver.Chrome(service=service, options=chrome_options)
-
-# Define file paths
-csv_file = "data/sets.csv"
-temp_csv_file = "data/sets_temp.csv"
+driver = webdriver.Chrome(options=options)
+wait = WebDriverWait(driver, 10)
 
 try:
-    # Open the URL
-    driver.get(url)
-
-    # Wait for the page to load and locate the dropdown by its index
-    wait = WebDriverWait(driver, 10)
-    dropdown_container = wait.until(
-        EC.presence_of_all_elements_located(
-            (By.CLASS_NAME, "tcg-input-autocomplete__combobox-container")
-        )
-    )[1]  # Use the second dropdown (index 1)
-
-    # Click the dropdown to open it
-    dropdown_button = dropdown_container.find_element(By.TAG_NAME, "button")
+    # Navigate to the page
+    driver.get("https://www.tcgplayer.com/categories/trading-and-collectible-card-games/pokemon/price-guides")
+    
+    # Locate all dropdown containers
+    dropdowns = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tcg-input-autocomplete__combobox-container")))
+    
+    # Select the second dropdown by index
+    second_dropdown = dropdowns[1]  # Index 1 for the second dropdown
+    dropdown_button = second_dropdown.find_element(By.CLASS_NAME, "tcg-input-autocomplete__dropdown-toggle-button")
+    driver.execute_script("arguments[0].scrollIntoView();", dropdown_button)
     dropdown_button.click()
-    print("Dropdown clicked!")
+    
+    # Wait for dropdown items to load
+    dropdown_items = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tcg-base-dropdown__item-content")))
+    
+    # Extract and clean the dropdown text
+    sets = []
+    for item in dropdown_items:
+        text = item.text.lower()
+        text = re.sub(r'\band\b', 'and', text)
+        text = re.sub(r'[^\w\s]', '', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        text = text.replace(' ', '-')
+        sets.append(text)
+    
+        # Remove empty rows right before writing to the CSV
+    sets = [s for s in sets if s]  # Filter out empty rows
 
-    # Wait for the dropdown options to appear
-    options = wait.until(
-        EC.presence_of_all_elements_located((By.CLASS_NAME, "tcg-base-dropdown__item-content"))
-    )
-
-    # Extract and transform text from each dropdown option
-    option_texts = [transform_text(option.text.strip()) for option in options if option.text.strip()]
-    print(f"Transformed options: {option_texts}")
-
-    # Write the transformed options to a temporary CSV file
-    with open(temp_csv_file, mode="w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(["set"])  # Write header
-        for option in option_texts:
-            writer.writerow([option])
-
-    print(f"Data written to temporary file {temp_csv_file}.")
-
-    # Compare row counts
-    current_row_count = count_csv_rows(csv_file)
-    new_row_count = count_csv_rows(temp_csv_file)
-
-    print(f"Current row count: {current_row_count}")
-    print(f"New row count: {new_row_count}")
-
-    # Overwrite the original CSV file if the new file has the same or more rows
-    if new_row_count >= current_row_count:
-        os.replace(temp_csv_file, csv_file)
-        print(f"File {csv_file} overwritten with new data.")
+    # Read the old file if it exists
+    output_file = "data/sets.csv"
+    if os.path.exists(output_file):
+        with open(output_file, "r", newline="") as f:
+            reader = csv.reader(f)
+            old_sets = list(reader)
     else:
-        os.remove(temp_csv_file)
-        print("New file has fewer rows. Original file retained.")
+        old_sets = []
+    
+
+    # Write only if new data has more rows
+    if len(sets) >= len(old_sets)-2:
+        os.makedirs("data", exist_ok=True)
+        with open(output_file, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["set"])  # Add a header row
+            writer.writerows([[s] for s in sets])
+        print("New sets written to file.")
+    else:
+        print("New data has fewer rows. Keeping the existing file.")
 
 finally:
-    # Close the browser
     driver.quit()
