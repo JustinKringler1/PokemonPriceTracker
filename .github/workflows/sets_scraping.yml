@@ -1,0 +1,40 @@
+name: Scrape sets
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  run-selenium:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"  # Or any supported version
+
+      - name: Install Chrome and Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libgconf-2-4 google-chrome-stable
+
+      - name: Install Selenium and Other Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium
+
+      - name: Run Selenium Script
+        run: |
+          mkdir -p data  # Ensure the data directory exists
+          python code/scraping/tcg_set_scraping.py
+
+      - name: Upload sets.csv as an artifact (optional)
+        uses: actions/upload-artifact@v3
+        with:
+          name: sets-csv
+          path: data/sets.csv
